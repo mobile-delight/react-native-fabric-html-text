@@ -69,9 +69,13 @@ describe('HTMLText - className Styling', () => {
     // Check className is applied
     expect(wrapper).toHaveClass('bg-amber-50');
     expect(wrapper).toHaveClass('border-l-4');
-    // Check truncation styles are also applied
+    // Wrapper has overflow:hidden, inner block elements get line-clamp styles
     expect(wrapper.style.overflow).toBe('hidden');
-    expect(wrapper.style.display).toBe('-webkit-box');
+
+    // Check that inner p element has truncation styles injected
+    const paragraph = container.querySelector('p');
+    expect(paragraph).not.toBeNull();
+    expect(paragraph!.style.display).toBe('-webkit-box');
   });
 
   it('applies testID as data-testid attribute', () => {

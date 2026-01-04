@@ -3,7 +3,7 @@
 import HTMLText from 'react-native-fabric-html-text';
 import DemoSection from '@/components/DemoSection';
 
-export default function StylingPage() {
+export default function StylingPage(): React.JSX.Element {
   return (
     <div>
       <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100">

@@ -157,12 +157,17 @@ describe('HTMLText - Truncation (numberOfLines)', () => {
       />
     );
     const wrapper = container.firstChild as HTMLElement;
-    // Check core truncation styles
+    // Wrapper has overflow:hidden, inner block elements get line-clamp styles
     expect(wrapper.style.overflow).toBe('hidden');
-    expect(wrapper.style.display).toBe('-webkit-box');
-    // jsdom stores webkit properties via camelCase (WebkitLineClamp)
-    expect(getWebkitStyle(wrapper, 'WebkitLineClamp')).toBe('1');
-    expect(getWebkitStyle(wrapper, 'WebkitBoxOrient')).toBe('vertical');
+
+    // Check that inner p element has truncation styles injected via inline style attribute
+    // (jsdom doesn't fully parse vendor-prefixed CSS in style objects)
+    const paragraph = container.querySelector('p');
+    expect(paragraph).not.toBeNull();
+    const styleAttr = paragraph!.getAttribute('style') || '';
+    expect(styleAttr).toContain('-webkit-line-clamp:1');
+    expect(styleAttr).toContain('-webkit-box-orient:vertical');
+    expect(styleAttr).toContain('display:-webkit-box');
   });
 
   it('applies multi-line truncation styles when numberOfLines={3}', () => {
@@ -173,10 +178,16 @@ describe('HTMLText - Truncation (numberOfLines)', () => {
       />
     );
     const wrapper = container.firstChild as HTMLElement;
+    // Wrapper has overflow:hidden, inner block elements get line-clamp styles
     expect(wrapper.style.overflow).toBe('hidden');
-    expect(wrapper.style.display).toBe('-webkit-box');
-    expect(getWebkitStyle(wrapper, 'WebkitLineClamp')).toBe('3');
-    expect(getWebkitStyle(wrapper, 'WebkitBoxOrient')).toBe('vertical');
+
+    // Check that inner p elements have truncation styles injected via inline style attribute
+    const paragraphs = container.querySelectorAll('p');
+    expect(paragraphs.length).toBeGreaterThan(0);
+    const styleAttr = paragraphs[0].getAttribute('style') || '';
+    expect(styleAttr).toContain('-webkit-line-clamp:3');
+    expect(styleAttr).toContain('-webkit-box-orient:vertical');
+    expect(styleAttr).toContain('display:-webkit-box');
   });
 
   it('does not apply truncation styles when numberOfLines is 0', () => {
