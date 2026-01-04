@@ -53,6 +53,7 @@ std::string FabricHTMLTextShadowNode::stripHtmlTags(const std::string& html) {
   return FabricHTMLParser::stripHtmlTags(html);
 }
 
+// NOTE: This method modifies _linkUrls. It must only be called while holding _mutex.
 AttributedString FabricHTMLTextShadowNode::parseHtmlToAttributedString(
     const std::string& html,
     Float fontSizeMultiplier) const {
@@ -121,9 +122,16 @@ Size FabricHTMLTextShadowNode::measureContent(
          layoutConstraints.minimumSize.height, layoutConstraints.maximumSize.height);
   }
 
-  _attributedString = parseHtmlToAttributedString(props.html, fontSizeMultiplier);
+  // Parse HTML and cache result under mutex protection.
+  // Use local variable for measurement to minimize lock duration.
+  AttributedString localAttributedString;
+  {
+    std::lock_guard<std::mutex> lock(_mutex);
+    localAttributedString = parseHtmlToAttributedString(props.html, fontSizeMultiplier);
+    _attributedString = localAttributedString;
+  }
 
-  if (_attributedString.isEmpty()) {
+  if (localAttributedString.isEmpty()) {
     if (DEBUG_CPP_MEASUREMENT) {
       LOGD("Empty attributed string, returning 0x0");
     }
@@ -132,7 +140,7 @@ Size FabricHTMLTextShadowNode::measureContent(
 
   if (DEBUG_CPP_MEASUREMENT) {
     // Log fragment info
-    const auto& fragments = _attributedString.getFragments();
+    const auto& fragments = localAttributedString.getFragments();
     LOGD("AttributedString has %zu fragments", fragments.size());
     size_t totalTextLen = 0;
     int lineBreakCount = 0;
@@ -164,7 +172,7 @@ Size FabricHTMLTextShadowNode::measureContent(
       getContextContainer());
 
   auto measuredSize = textLayoutManager->measure(
-      AttributedStringBox{_attributedString},
+      AttributedStringBox{localAttributedString},
       paragraphAttributes,
       textLayoutContext,
       layoutConstraints);
@@ -185,14 +193,23 @@ void FabricHTMLTextShadowNode::layout(LayoutContext layoutContext) {
   paragraphAttributes.maximumNumberOfLines = 0;
   paragraphAttributes.ellipsizeMode = EllipsizeMode::Tail;
 
+  // Copy cached data under mutex protection to avoid data races.
+  AttributedString localAttributedString;
+  std::vector<std::string> localLinkUrls;
+  {
+    std::lock_guard<std::mutex> lock(_mutex);
+    localAttributedString = _attributedString;
+    localLinkUrls = _linkUrls;
+  }
+
   // Set state with the parsed AttributedString and link URLs
   // This passes the C++ parsed fragments to Kotlin via MapBuffer serialization,
   // eliminating the need for duplicate HTML parsing in the view layer.
-  setStateData(FabricHTMLTextState{_attributedString, paragraphAttributes, _linkUrls});
+  setStateData(FabricHTMLTextState{localAttributedString, paragraphAttributes, localLinkUrls});
 
   if (DEBUG_CPP_MEASUREMENT) {
     LOGD("layout() - State set with %zu fragments, %zu linkUrls",
-         _attributedString.getFragments().size(), _linkUrls.size());
+         localAttributedString.getFragments().size(), localLinkUrls.size());
   }
 }
 

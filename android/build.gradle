@@ -107,7 +107,7 @@ dependencies {
   }
   implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
   implementation "androidx.appcompat:appcompat:1.7.0"
-  implementation "com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20220608.1"
+  implementation "com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20240325.1"
 
   testImplementation "junit:junit:4.13.2"
   testImplementation "org.robolectric:robolectric:4.16"

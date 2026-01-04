@@ -19,6 +19,7 @@
 #include <react/renderer/core/LayoutContext.h>
 #include <react/renderer/core/ShadowNode.h>
 #include <jsi/jsi.h>
+#include <mutex>
 
 namespace facebook::react {
 
@@ -69,6 +70,9 @@ class FabricHTMLTextShadowNode final : public ConcreteViewShadowNode<
 
   static std::string stripHtmlTags(const std::string& html);
 
+  // Mutex protecting mutable members from concurrent access.
+  // measureContent() may be called concurrently by Fabric's layout system.
+  mutable std::mutex _mutex;
   mutable AttributedString _attributedString;
   mutable std::vector<std::string> _linkUrls;
 };
