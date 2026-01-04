@@ -57,6 +57,9 @@
   },
   "author": "Michael Fay <michael@example.com> (https://github.com/michael-fay)",
   "license": "MIT",
+  "engines": {
+    "node": ">=24.12.0"
+  },
   "bugs": {
     "url": "https://github.com/michael-fay/react-native-fabric-html-text/issues"
   },
