@@ -2,8 +2,6 @@
 # Profile: Chill on styling, strict on security and constitution
 # https://docs.coderabbit.ai/reference/configuration
 
-version: 2
-
 language: en-US
 
 reviews:
@@ -140,11 +138,6 @@ reviews:
       enabled: true
     biome:
       enabled: true
-
-    # GitHub integration
-    github-checks:
-      enabled: true
-      timeout_ms: 90000
 
     # Language tools - relaxed settings
     languagetool:
