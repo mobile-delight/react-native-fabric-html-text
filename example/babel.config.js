@@ -6,17 +6,14 @@ const root = path.resolve(__dirname, '..');
 
 const isTestEnv = process.env.NODE_ENV === 'test';
 
-// NativeWind preset and worklets plugin - skip in Jest test environment
+// In test environment, skip NativeWind preset and worklets plugin (they cause Jest issues)
 const nativewindPresets = isTestEnv ? [] : ['nativewind/babel'];
 const nativewindPlugins = isTestEnv ? [] : ['react-native-worklets/plugin'];
 
 module.exports = getConfig(
   {
     presets: [
-      [
-        'module:@react-native/babel-preset',
-        { useTransformReactJSXExperimental: true },
-      ],
+      'module:@react-native/babel-preset',
       // NativeWind babel preset (must be a preset, not plugin)
       ...nativewindPresets,
     ],
