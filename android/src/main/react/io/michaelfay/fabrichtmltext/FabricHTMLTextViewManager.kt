@@ -158,6 +158,16 @@ class FabricHTMLTextViewManager : SimpleViewManager<FabricHTMLTextView>(),
     view?.setDetectEmails(detectEmails)
   }
 
+  @ReactProp(name = "numberOfLines", defaultInt = 0)
+  override fun setNumberOfLines(view: FabricHTMLTextView?, numberOfLines: Int) {
+    view?.setNumberOfLines(numberOfLines)
+  }
+
+  @ReactProp(name = "animationDuration", defaultFloat = 0.2f)
+  override fun setAnimationDuration(view: FabricHTMLTextView?, animationDuration: Float) {
+    view?.setAnimationDuration(animationDuration)
+  }
+
   override fun getExportedCustomDirectEventTypeConstants(): Map<String, Any>? {
     return MapBuilder.builder<String, Any>()
       .put(LinkPressEvent.EVENT_NAME, MapBuilder.of("registrationName", "onLinkPress"))

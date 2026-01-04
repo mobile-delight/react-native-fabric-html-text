@@ -20,6 +20,10 @@ class FabricHTMLTextStateData final {
   AttributedString attributedString;
   // Link URLs indexed by fragment position (empty string for non-links)
   std::vector<std::string> linkUrls;
+  // Maximum number of lines to display (0 = no limit)
+  int numberOfLines{0};
+  // Animation duration for height changes in seconds (0 = instant)
+  Float animationDuration{0.2f};
 };
 
 /**

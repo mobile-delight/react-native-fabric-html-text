@@ -19,6 +19,8 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.MotionEvent
 import androidx.appcompat.widget.AppCompatTextView
+import android.animation.ValueAnimator
+import android.view.animation.AccelerateDecelerateInterpolator
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.min
@@ -77,6 +79,15 @@ class FabricHTMLTextView : AppCompatTextView {
   private var baseAllowFontScaling: Boolean = true
   private var baseMaxFontSizeMultiplier: Float = 0f
   private var baseTextColor: Int? = null
+
+  // numberOfLines feature props
+  private var numberOfLines: Int = 0  // 0 = no limit
+  private var animationDuration: Float = 0.2f
+
+  // Height animation state
+  private var previousHeight: Int = 0
+  private var hasInitializedLayout: Boolean = false
+  private var heightAnimator: ValueAnimator? = null
 
   // Debug drawing paints
   private val debugFillPaints = if (DEBUG_DRAW_LINE_BOUNDS) {
@@ -292,6 +303,38 @@ class FabricHTMLTextView : AppCompatTextView {
     }
   }
 
+  fun setNumberOfLines(lines: Int) {
+    val effectiveLines = if (lines < 0) 0 else lines
+    if (numberOfLines != effectiveLines) {
+      numberOfLines = effectiveLines
+      customLayout = null  // Force layout recreation
+      updateAccessibilityForTruncation()
+      invalidate()
+    }
+  }
+
+  /**
+   * Update content description to indicate truncation for TalkBack users.
+   */
+  private fun updateAccessibilityForTruncation() {
+    if (numberOfLines > 0 && text?.isNotEmpty() == true) {
+      // Check if content would be truncated
+      val layout = customLayout ?: layout
+      if (layout != null && layout.lineCount > numberOfLines) {
+        // Content is truncated - provide hint
+        contentDescription = text.toString() + ". Content is truncated."
+      } else {
+        contentDescription = null // Use default text content
+      }
+    } else {
+      contentDescription = null
+    }
+  }
+
+  fun setAnimationDuration(duration: Float) {
+    animationDuration = if (duration < 0) 0f else duration
+  }
+
   /**
    * Apply auto-detection to the current text if any detection props are enabled.
    * Uses Android's Linkify to detect URLs, emails, and phone numbers.
@@ -369,6 +412,9 @@ class FabricHTMLTextView : AppCompatTextView {
       }
     }
 
+    // Update accessibility after content changes
+    post { updateAccessibilityForTruncation() }
+
     invalidate()
     requestLayout()
   }
@@ -424,8 +470,8 @@ class FabricHTMLTextView : AppCompatTextView {
       else -> Layout.Alignment.ALIGN_NORMAL
     }
 
-    // If boring text fits in width, use BoringLayout (matches TextLayoutManager)
-    if (boring != null && boring.width <= floor(availableWidth.toFloat())) {
+    // If boring text fits in width and numberOfLines allows single line, use BoringLayout
+    if (boring != null && boring.width <= floor(availableWidth.toFloat()) && (numberOfLines == 0 || numberOfLines == 1)) {
       if (DEBUG_LOG) {
         Log.d(TAG, "[Layout] Using BoringLayout: width=${boring.width}, availableWidth=$availableWidth")
       }
@@ -439,7 +485,7 @@ class FabricHTMLTextView : AppCompatTextView {
     val layoutWidth = min(desiredWidth, availableWidth)
 
     if (DEBUG_LOG) {
-      Log.d(TAG, "[Layout] Using StaticLayout: desiredWidth=$desiredWidth, layoutWidth=$layoutWidth, availableWidth=$availableWidth")
+      Log.d(TAG, "[Layout] Using StaticLayout: desiredWidth=$desiredWidth, layoutWidth=$layoutWidth, availableWidth=$availableWidth, numberOfLines=$numberOfLines")
     }
 
     // Build StaticLayout with EXACT same parameters as TextLayoutManager.createLayout()
@@ -449,6 +495,12 @@ class FabricHTMLTextView : AppCompatTextView {
       .setIncludePad(includeFontPadding)
       .setBreakStrategy(Layout.BREAK_STRATEGY_HIGH_QUALITY)
       .setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NONE)
+
+    // Apply numberOfLines with ellipsis truncation
+    if (numberOfLines > 0) {
+      builder.setMaxLines(numberOfLines)
+      builder.setEllipsize(android.text.TextUtils.TruncateAt.END)
+    }
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
       builder.setUseLineSpacingFromFallbacks(true)
@@ -465,6 +517,14 @@ class FabricHTMLTextView : AppCompatTextView {
       customLayout = null
     }
 
+    // Handle height animation when numberOfLines changes
+    if (hasInitializedLayout && h != previousHeight && animationDuration > 0 && oldh > 0) {
+      animateHeightChange(oldh, h)
+    }
+
+    previousHeight = h
+    hasInitializedLayout = true
+
     if (DEBUG_LOG) {
       val textLayout = if (hasStateSpannable) customLayout else layout
       val contentHeight = textLayout?.height ?: 0
@@ -473,6 +533,36 @@ class FabricHTMLTextView : AppCompatTextView {
       Log.d(TAG, "[View] Layout content height: $contentHeight, lines: $lineCount")
       Log.d(TAG, "[View] Extra space: ${h - contentHeight}px")
     }
+  }
+
+  private fun animateHeightChange(fromHeight: Int, toHeight: Int) {
+    // Cancel any running animation
+    heightAnimator?.cancel()
+
+    // Convert animationDuration from seconds to milliseconds
+    val durationMs = (animationDuration * 1000).toLong()
+
+    heightAnimator = ValueAnimator.ofInt(fromHeight, toHeight).apply {
+      duration = durationMs
+      interpolator = AccelerateDecelerateInterpolator()
+      addUpdateListener { animator ->
+        val animatedHeight = animator.animatedValue as Int
+        // Request layout to apply the animated height
+        val params = layoutParams
+        if (params != null) {
+          params.height = animatedHeight
+          layoutParams = params
+        }
+      }
+      start()
+    }
+  }
+
+  override fun onDetachedFromWindow() {
+    super.onDetachedFromWindow()
+    // Clean up animator when view is detached
+    heightAnimator?.cancel()
+    heightAnimator = null
   }
 
   override fun onDraw(canvas: Canvas) {

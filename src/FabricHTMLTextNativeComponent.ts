@@ -49,6 +49,10 @@ interface NativeProps extends ViewProps {
   allowFontScaling?: boolean | undefined;
   maxFontSizeMultiplier?: Float | undefined;
   color?: Int32 | undefined; // Process with processColor before passing
+
+  // numberOfLines feature props
+  numberOfLines?: Int32 | undefined;
+  animationDuration?: Float | undefined;
 }
 
 export default codegenNativeComponent<NativeProps>(

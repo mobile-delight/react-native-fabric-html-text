@@ -105,7 +105,9 @@ Size FabricHTMLTextShadowNode::measureContent(
 
     // Set up paragraph attributes
     auto paragraphAttributes = ParagraphAttributes{};
-    paragraphAttributes.maximumNumberOfLines = 0;
+    // Use numberOfLines from props (0 or negative = no limit)
+    int numberOfLines = props.numberOfLines;
+    paragraphAttributes.maximumNumberOfLines = (numberOfLines > 0) ? numberOfLines : 0;
     paragraphAttributes.ellipsizeMode = EllipsizeMode::Tail;
 
     // Set up text layout context
@@ -128,15 +130,20 @@ Size FabricHTMLTextShadowNode::measureContent(
 void FabricHTMLTextShadowNode::layout(LayoutContext layoutContext) {
     ensureUnsealed();
 
+    const auto& props = getConcreteProps();
+
     // Create paragraph attributes for state
     auto paragraphAttributes = ParagraphAttributes{};
-    paragraphAttributes.maximumNumberOfLines = 0;
+    int numberOfLines = props.numberOfLines;
+    paragraphAttributes.maximumNumberOfLines = (numberOfLines > 0) ? numberOfLines : 0;
     paragraphAttributes.ellipsizeMode = EllipsizeMode::Tail;
 
-    // Set state with the parsed AttributedString and link URLs
+    // Set state with the parsed AttributedString, link URLs, and numberOfLines/animationDuration
     // This passes the C++ parsed fragments to the iOS view,
     // eliminating the need for duplicate HTML parsing in the view layer.
-    setStateData(FabricHTMLTextStateData{_attributedString, _linkUrls});
+    int effectiveNumberOfLines = (props.numberOfLines > 0) ? props.numberOfLines : 0;
+    Float animationDuration = (props.animationDuration > 0) ? props.animationDuration : 0.0f;
+    setStateData(FabricHTMLTextStateData{_attributedString, _linkUrls, effectiveNumberOfLines, animationDuration});
 
     ConcreteViewShadowNode::layout(layoutContext);
 }

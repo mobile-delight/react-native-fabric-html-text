@@ -158,8 +158,15 @@ Size FabricHTMLTextShadowNode::measureContent(
   }
 
   auto paragraphAttributes = ParagraphAttributes{};
-  paragraphAttributes.maximumNumberOfLines = 0;
+  // Use numberOfLines from props (0 or negative = no limit)
+  int numberOfLines = props.numberOfLines;
+  paragraphAttributes.maximumNumberOfLines = (numberOfLines > 0) ? numberOfLines : 0;
   paragraphAttributes.ellipsizeMode = EllipsizeMode::Tail;
+
+  if (DEBUG_CPP_MEASUREMENT) {
+    LOGD("numberOfLines prop: %d, maximumNumberOfLines: %d",
+         props.numberOfLines, paragraphAttributes.maximumNumberOfLines);
+  }
 
   TextLayoutContext textLayoutContext{};
   textLayoutContext.pointScaleFactor = layoutContext.pointScaleFactor;
@@ -188,9 +195,12 @@ Size FabricHTMLTextShadowNode::measureContent(
 void FabricHTMLTextShadowNode::layout(LayoutContext layoutContext) {
   ensureUnsealed();
 
+  const auto& props = getConcreteProps();
+
   // Create paragraph attributes for state
   auto paragraphAttributes = ParagraphAttributes{};
-  paragraphAttributes.maximumNumberOfLines = 0;
+  int numberOfLines = props.numberOfLines;
+  paragraphAttributes.maximumNumberOfLines = (numberOfLines > 0) ? numberOfLines : 0;
   paragraphAttributes.ellipsizeMode = EllipsizeMode::Tail;
 
   // Copy cached data under mutex protection to avoid data races.

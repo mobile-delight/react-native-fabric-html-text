@@ -41,6 +41,12 @@ typedef NS_ENUM(NSInteger, HTMLDetectedContentType) {
 /// Enable automatic email address detection. When true, emails will be tappable. Defaults to NO.
 @property (nonatomic, assign) BOOL detectEmails;
 
+/// Maximum number of lines to display (0 = no limit). When exceeded, truncates with trailing ellipsis.
+@property (nonatomic, assign) NSInteger numberOfLines;
+
+/// Animation duration for height changes in seconds (0 = instant).
+@property (nonatomic, assign) CGFloat animationDuration;
+
 @end
 
 NS_ASSUME_NONNULL_END

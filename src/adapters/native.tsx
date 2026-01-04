@@ -23,6 +23,8 @@ export function HTMLTextNative(props: HTMLTextNativeProps): ReactElement {
     detectLinks,
     detectPhoneNumbers,
     detectEmails,
+    numberOfLines,
+    animationDuration,
     ...rest
   } = props;
 
@@ -74,6 +76,13 @@ export function HTMLTextNative(props: HTMLTextNativeProps): ReactElement {
   const includeFontPadding = props.includeFontPadding ?? true;
   const maxFontSizeMultiplier = props.maxFontSizeMultiplier;
 
+  // Coerce negative numberOfLines to 0 (no limit)
+  const effectiveNumberOfLines =
+    numberOfLines !== undefined && numberOfLines < 0 ? 0 : numberOfLines;
+
+  // Default animationDuration to 0.2 if not specified
+  const effectiveAnimationDuration = animationDuration ?? 0.2;
+
   return (
     <FabricHTMLText
       html={html}
@@ -96,6 +105,8 @@ export function HTMLTextNative(props: HTMLTextNativeProps): ReactElement {
       detectLinks={detectLinks}
       detectPhoneNumbers={detectPhoneNumbers}
       detectEmails={detectEmails}
+      numberOfLines={effectiveNumberOfLines}
+      animationDuration={effectiveAnimationDuration}
       {...rest}
     />
   );

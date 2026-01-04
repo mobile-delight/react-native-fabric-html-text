@@ -7,6 +7,8 @@ static NSString *const HTMLDetectedContentTypeKey = @"HTMLDetectedContentType";
 @implementation FabricHTMLCoreTextView {
   CTFrameRef _ctFrame;
   NSAttributedString *_processedAttributedText; // With detected links added
+  CGFloat _previousContentHeight; // Track height for animation
+  BOOL _hasInitializedHeight; // Flag for first layout
 #if DEBUG
   NSArray<NSDictionary *> *_debugLineInfo; // Cached debug info for each line
 #endif
@@ -17,6 +19,9 @@ static NSString *const HTMLDetectedContentTypeKey = @"HTMLDetectedContentType";
   if (self) {
     self.backgroundColor = [UIColor clearColor];
     self.contentMode = UIViewContentModeRedraw;
+    _previousContentHeight = 0;
+    _hasInitializedHeight = NO;
+    _animationDuration = 0.2; // Default animation duration
   }
   return self;
 }
@@ -35,6 +40,7 @@ static NSString *const HTMLDetectedContentTypeKey = @"HTMLDetectedContentType";
   _attributedText = [attributedText copy];
   _processedAttributedText = [self processAttributedTextWithDetection:_attributedText];
   [self invalidateFrame];
+  [self updateAccessibilityForTruncation];
   [self setNeedsDisplay];
 }
 
@@ -66,6 +72,46 @@ static NSString *const HTMLDetectedContentTypeKey = @"HTMLDetectedContentType";
   _processedAttributedText = [self processAttributedTextWithDetection:_attributedText];
   [self invalidateFrame];
   [self setNeedsDisplay];
+}
+
+- (void)setNumberOfLines:(NSInteger)numberOfLines {
+  NSLog(@"[FabricHTMLText] setNumberOfLines: %ld -> %ld", (long)_numberOfLines, (long)numberOfLines);
+  if (_numberOfLines == numberOfLines) {
+    return;
+  }
+  _numberOfLines = numberOfLines;
+  [self updateAccessibilityForTruncation];
+  [self setNeedsDisplay];
+}
+
+/**
+ * Update accessibility label to indicate truncation if content is truncated.
+ */
+- (void)updateAccessibilityForTruncation {
+  if (_numberOfLines > 0 && _attributedText.length > 0) {
+    // Create a CTFrame to check if content is truncated
+    CTFrameRef frame = [self ctFrame];
+    if (frame) {
+      CFArrayRef lines = CTFrameGetLines(frame);
+      CFIndex lineCount = CFArrayGetCount(lines);
+
+      if (lineCount > _numberOfLines) {
+        // Content is truncated
+        self.accessibilityHint = NSLocalizedString(@"Content is truncated. Double-tap for more options.", @"Accessibility hint for truncated text");
+      } else {
+        self.accessibilityHint = nil;
+      }
+    }
+  } else {
+    self.accessibilityHint = nil;
+  }
+}
+
+- (void)setAnimationDuration:(CGFloat)animationDuration {
+  if (_animationDuration == animationDuration) {
+    return;
+  }
+  _animationDuration = animationDuration;
 }
 
 /**
@@ -236,12 +282,17 @@ static BOOL kDebugDrawLineBounds = NO;
 #endif
 
 - (void)drawRect:(CGRect)rect {
+  NSLog(@"[FabricHTMLText] drawRect called, numberOfLines=%ld, textLength=%lu",
+        (long)_numberOfLines, (unsigned long)_attributedText.length);
+
   if (_attributedText.length == 0) {
+    NSLog(@"[FabricHTMLText] drawRect: empty text, returning");
     return;
   }
 
   CGContextRef context = UIGraphicsGetCurrentContext();
   if (!context) {
+    NSLog(@"[FabricHTMLText] drawRect: no context, returning");
     return;
   }
 
@@ -253,7 +304,14 @@ static BOOL kDebugDrawLineBounds = NO;
 
   CTFrameRef frame = [self ctFrame];
   if (frame) {
-    CTFrameDraw(frame, context);
+    // Check if we need to apply numberOfLines truncation
+    if (_numberOfLines > 0) {
+      NSLog(@"[FabricHTMLText] drawRect: calling drawTruncatedFrame with maxLines=%ld", (long)_numberOfLines);
+      [self drawTruncatedFrame:frame inContext:context maxLines:_numberOfLines];
+    } else {
+      NSLog(@"[FabricHTMLText] drawRect: no truncation, calling CTFrameDraw");
+      CTFrameDraw(frame, context);
+    }
 
 #if DEBUG
     // Debug: draw bounding boxes around each line
@@ -264,6 +322,189 @@ static BOOL kDebugDrawLineBounds = NO;
   }
 
   CGContextRestoreGState(context);
+}
+
+/**
+ * Draw the frame with truncation at the specified number of lines.
+ * If the content exceeds maxLines, the last visible line is truncated with ellipsis.
+ */
+- (void)drawTruncatedFrame:(CTFrameRef)frame inContext:(CGContextRef)context maxLines:(NSInteger)maxLines {
+  CFArrayRef lines = CTFrameGetLines(frame);
+  CFIndex lineCount = CFArrayGetCount(lines);
+
+  NSAttributedString *textToRender = _processedAttributedText ?: _attributedText;
+  NSUInteger totalTextLength = textToRender.length;
+
+  // Check if there's text beyond what's visible in the frame.
+  // The shadow node constrains the frame height, so lineCount may equal maxLines
+  // even when there's more content. We detect this by checking visible range.
+  CFRange visibleRange = CTFrameGetVisibleStringRange(frame);
+  BOOL hasMoreContent = (visibleRange.location + visibleRange.length) < (CFIndex)totalTextLength;
+
+  NSLog(@"[FabricHTMLText] drawTruncatedFrame: maxLines=%ld, lineCount=%ld, boundsWidth=%.1f",
+        (long)maxLines, (long)lineCount, self.bounds.size.width);
+  NSLog(@"[FabricHTMLText] visibleRange: loc=%ld len=%ld, totalLength=%lu, hasMoreContent=%d",
+        (long)visibleRange.location, (long)visibleRange.length, (unsigned long)totalTextLength, hasMoreContent);
+
+  if (lineCount == 0) {
+    NSLog(@"[FabricHTMLText] No lines to draw, returning");
+    return;
+  }
+
+  // If all content is visible, draw normally (no truncation needed)
+  if (!hasMoreContent) {
+    NSLog(@"[FabricHTMLText] All content visible, drawing normally");
+    CTFrameDraw(frame, context);
+    return;
+  }
+
+  NSLog(@"[FabricHTMLText] Content is truncated, will add ellipsis");
+
+  // Get line origins for all lines
+  CGPoint *lineOrigins = malloc(sizeof(CGPoint) * lineCount);
+  CTFrameGetLineOrigins(frame, CFRangeMake(0, 0), lineOrigins);
+
+  // Draw all lines except the last one normally
+  for (CFIndex i = 0; i < lineCount - 1; i++) {
+    CTLineRef line = CFArrayGetValueAtIndex(lines, i);
+    CGPoint origin = lineOrigins[i];
+    CGContextSetTextPosition(context, origin.x, origin.y);
+    CTLineDraw(line, context);
+  }
+
+  // Draw the last visible line with ellipsis truncation
+  if (lineCount > 0) {
+    CTLineRef lastVisibleLine = CFArrayGetValueAtIndex(lines, lineCount - 1);
+    CGPoint lastOrigin = lineOrigins[lineCount - 1];
+    CGFloat availableWidth = self.bounds.size.width;
+
+    // Get the string range of the last visible line
+    CFRange lastLineRange = CTLineGetStringRange(lastVisibleLine);
+    NSAttributedString *textToRender = _processedAttributedText ?: _attributedText;
+    NSUInteger startLocation = (NSUInteger)lastLineRange.location;
+
+    if (startLocation < textToRender.length) {
+      // Get all remaining text from this line to end of content
+      NSRange remainingRange = NSMakeRange(startLocation, textToRender.length - startLocation);
+      NSAttributedString *remainingText = [textToRender attributedSubstringFromRange:remainingRange];
+
+      NSLog(@"[FabricHTMLText] Last line range: loc=%lu len=%ld, remaining text length=%lu",
+            (unsigned long)startLocation, (long)lastLineRange.length, (unsigned long)remainingText.length);
+      NSLog(@"[FabricHTMLText] Remaining text (first 100 chars): '%@'",
+            [remainingText.string substringToIndex:MIN(100, remainingText.string.length)]);
+
+      // Replace newlines with spaces so CTLine sees it as continuous text.
+      // We must preserve attributes, so replace character-by-character.
+      NSMutableAttributedString *continuousText = [remainingText mutableCopy];
+      NSCharacterSet *newlineSet = [NSCharacterSet newlineCharacterSet];
+      NSString *plainText = continuousText.string;
+
+      // Replace newlines from end to start to preserve indices
+      for (NSInteger i = plainText.length - 1; i >= 0; i--) {
+        unichar c = [plainText characterAtIndex:i];
+        if ([newlineSet characterIsMember:c]) {
+          // Replace with space, preserving attributes at that location
+          [continuousText replaceCharactersInRange:NSMakeRange(i, 1) withString:@" "];
+        }
+      }
+
+      NSLog(@"[FabricHTMLText] Continuous text (first 100 chars): '%@'",
+            [continuousText.string substringToIndex:MIN(100, continuousText.string.length)]);
+
+      // Create a line from the continuous text
+      CTLineRef continuousLine = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)continuousText);
+
+      // Get the width of the continuous line
+      CGFloat continuousLineWidth = CTLineGetTypographicBounds(continuousLine, NULL, NULL, NULL);
+      NSLog(@"[FabricHTMLText] Continuous line width=%.1f, available width=%.1f, needs truncation=%d",
+            continuousLineWidth, availableWidth, continuousLineWidth > availableWidth);
+
+      // Create the truncation token (ellipsis) with matching attributes
+      NSDictionary *attributes = [self attributesForTruncationToken:lastVisibleLine];
+      NSLog(@"[FabricHTMLText] Ellipsis attributes: %@", attributes);
+      NSAttributedString *ellipsisString = [[NSAttributedString alloc] initWithString:@"\u2026" attributes:attributes];
+      CTLineRef ellipsisLine = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)ellipsisString);
+
+      // Create a truncated line
+      CTLineRef truncatedLine = CTLineCreateTruncatedLine(continuousLine, availableWidth, kCTLineTruncationEnd, ellipsisLine);
+
+      NSLog(@"[FabricHTMLText] CTLineCreateTruncatedLine result: %@", truncatedLine ? @"SUCCESS" : @"NULL");
+
+      if (truncatedLine) {
+        CGContextSetTextPosition(context, lastOrigin.x, lastOrigin.y);
+        CTLineDraw(truncatedLine, context);
+        NSLog(@"[FabricHTMLText] Drew truncated line at origin (%.1f, %.1f)", lastOrigin.x, lastOrigin.y);
+        CFRelease(truncatedLine);
+      } else {
+        // CTLineCreateTruncatedLine returns NULL if line fits - but we know there's more content.
+        // Manually append ellipsis to indicate truncation.
+        NSLog(@"[FabricHTMLText] FALLBACK: CTLineCreateTruncatedLine returned NULL, manually appending ellipsis");
+
+        NSMutableAttributedString *lineWithEllipsis = [[textToRender attributedSubstringFromRange:
+            NSMakeRange(startLocation, MIN((NSUInteger)lastLineRange.length, textToRender.length - startLocation))] mutableCopy];
+
+        // Trim trailing whitespace/newlines and append ellipsis
+        NSString *trimmed = [lineWithEllipsis.string stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        NSLog(@"[FabricHTMLText] FALLBACK: Original text='%@', trimmed='%@'", lineWithEllipsis.string, trimmed);
+        [lineWithEllipsis replaceCharactersInRange:NSMakeRange(0, lineWithEllipsis.length) withString:trimmed];
+
+        NSAttributedString *ellipsis = [[NSAttributedString alloc] initWithString:@"\u2026" attributes:attributes];
+        [lineWithEllipsis appendAttributedString:ellipsis];
+        NSLog(@"[FabricHTMLText] FALLBACK: Text with ellipsis='%@'", lineWithEllipsis.string);
+
+        CTLineRef fallbackLine = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)lineWithEllipsis);
+        if (fallbackLine) {
+          // Truncate the fallback line if it's too wide
+          CTLineRef finalLine = CTLineCreateTruncatedLine(fallbackLine, availableWidth, kCTLineTruncationEnd, ellipsisLine);
+          CGContextSetTextPosition(context, lastOrigin.x, lastOrigin.y);
+          if (finalLine) {
+            NSLog(@"[FabricHTMLText] FALLBACK: Drew finalLine (truncated fallback)");
+            CTLineDraw(finalLine, context);
+            CFRelease(finalLine);
+          } else {
+            NSLog(@"[FabricHTMLText] FALLBACK: Drew fallbackLine (untruncated)");
+            CTLineDraw(fallbackLine, context);
+          }
+          CFRelease(fallbackLine);
+        } else {
+          // Ultimate fallback: just draw the original line
+          NSLog(@"[FabricHTMLText] FALLBACK: Ultimate fallback - drew original lastVisibleLine");
+          CGContextSetTextPosition(context, lastOrigin.x, lastOrigin.y);
+          CTLineDraw(lastVisibleLine, context);
+        }
+      }
+
+      CFRelease(continuousLine);
+      CFRelease(ellipsisLine);
+    } else {
+      // Edge case: no remaining text, just draw the line
+      CGContextSetTextPosition(context, lastOrigin.x, lastOrigin.y);
+      CTLineDraw(lastVisibleLine, context);
+    }
+  }
+
+  free(lineOrigins);
+}
+
+/**
+ * Extract text attributes from the last line to use for the ellipsis character.
+ * This ensures the ellipsis matches the style of the surrounding text.
+ */
+- (NSDictionary *)attributesForTruncationToken:(CTLineRef)line {
+  CFArrayRef runs = CTLineGetGlyphRuns(line);
+  if (CFArrayGetCount(runs) == 0) {
+    return @{};
+  }
+
+  // Get the last run to match the end of the line
+  CTRunRef lastRun = CFArrayGetValueAtIndex(runs, CFArrayGetCount(runs) - 1);
+  CFDictionaryRef runAttributes = CTRunGetAttributes(lastRun);
+
+  if (runAttributes) {
+    return (__bridge NSDictionary *)runAttributes;
+  }
+
+  return @{};
 }
 
 #if DEBUG

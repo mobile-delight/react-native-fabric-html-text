@@ -44,4 +44,24 @@ export interface HTMLTextNativeProps extends ViewProps {
    * Note: On iOS, enabling this also enables URL detection due to platform limitations.
    */
   detectEmails?: boolean | undefined;
+  /**
+   * Maximum number of lines to display before truncating with ellipsis.
+   *
+   * - `0` (default): No limit, all content is displayed
+   * - Positive integer: Limits visible lines to this count
+   * - Negative values: Treated as 0 (no limit)
+   *
+   * When content exceeds the limit, a trailing ellipsis (...) is shown.
+   */
+  numberOfLines?: number | undefined;
+  /**
+   * Duration in seconds for animating height changes when numberOfLines changes.
+   *
+   * - Positive value: Smooth height animation over this duration
+   * - `0` or negative: Instant height change (no animation)
+   *
+   * Uses ease-in-out timing curve on both platforms.
+   * @default 0.2
+   */
+  animationDuration?: number | undefined;
 }

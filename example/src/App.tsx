@@ -1,5 +1,12 @@
 import { useState, useCallback } from 'react';
-import { StyleSheet, ScrollView, Text, Alert, View } from 'react-native';
+import {
+  StyleSheet,
+  ScrollView,
+  Text,
+  Alert,
+  View,
+  TouchableOpacity,
+} from 'react-native';
 import {
   HTMLText,
   type DetectedContentType,
@@ -10,6 +17,8 @@ const DEBUG_BOUNDS = true;
 
 export default function App(): React.JSX.Element {
   const [lastLinkPressed, setLastLinkPressed] = useState<string | null>(null);
+  const [expandedText, setExpandedText] = useState(false);
+  const [numberOfLinesDemo, setNumberOfLinesDemo] = useState(2);
 
   const handleLinkPress = useCallback(
     (url: string, type: DetectedContentType) => {
@@ -18,6 +27,19 @@ export default function App(): React.JSX.Element {
     },
     []
   );
+
+  const toggleExpanded = useCallback(() => {
+    setExpandedText((prev) => !prev);
+  }, []);
+
+  const cycleNumberOfLines = useCallback(() => {
+    setNumberOfLinesDemo((prev) => {
+      if (prev === 0) return 1;
+      if (prev === 1) return 2;
+      if (prev === 2) return 3;
+      return 0; // 0 = no limit
+    });
+  }, []);
 
   return (
     <ScrollView
@@ -220,6 +242,51 @@ export default function App(): React.JSX.Element {
           testID="complex-content"
         />
       </View>
+
+      <Text style={styles.sectionTitle}>numberOfLines - Expand/Collapse</Text>
+      <TouchableOpacity onPress={toggleExpanded} activeOpacity={0.7}>
+        <View style={DEBUG_BOUNDS ? styles.debugContainer1 : undefined}>
+          <HTMLText
+            html="<p>This is a <strong>longer paragraph</strong> that demonstrates the <em>numberOfLines</em> feature. When collapsed, only the first 2 lines are shown with an ellipsis. Tap to expand or collapse this text. The height change is animated smoothly over 0.3 seconds using an ease-in-out timing curve.</p>"
+            style={[styles.text, DEBUG_BOUNDS && styles.debugText1]}
+            numberOfLines={expandedText ? 0 : 2}
+            animationDuration={0.3}
+            testID="expand-collapse-demo"
+          />
+        </View>
+        <Text style={styles.tapHint}>
+          Tap to {expandedText ? 'collapse' : 'expand'}
+        </Text>
+      </TouchableOpacity>
+
+      <Text style={styles.sectionTitle}>numberOfLines - Dynamic Control</Text>
+      <TouchableOpacity onPress={cycleNumberOfLines} activeOpacity={0.7}>
+        <View style={DEBUG_BOUNDS ? styles.debugContainer2 : undefined}>
+          <HTMLText
+            html="<p>This example cycles through different <strong>numberOfLines</strong> values: 1, 2, 3, and unlimited (0). Each tap changes the line limit and the height animates smoothly. The ellipsis is automatically added when content is truncated. This is useful for preview cards, article summaries, or any content that needs to be expandable.</p>"
+            style={[styles.text, DEBUG_BOUNDS && styles.debugText2]}
+            numberOfLines={numberOfLinesDemo}
+            animationDuration={0.2}
+            testID="dynamic-lines-demo"
+          />
+        </View>
+        <Text style={styles.tapHint}>
+          numberOfLines:{' '}
+          {numberOfLinesDemo === 0 ? 'unlimited' : numberOfLinesDemo} (tap to
+          change)
+        </Text>
+      </TouchableOpacity>
+
+      <Text style={styles.sectionTitle}>numberOfLines - Instant Change</Text>
+      <View style={DEBUG_BOUNDS ? styles.debugContainer1 : undefined}>
+        <HTMLText
+          html="<p>This text has <em>numberOfLines={1}</em> with <strong>animationDuration={0}</strong>, meaning height changes are instant with no animation. Only one line is shown.</p>"
+          style={[styles.text, DEBUG_BOUNDS && styles.debugText1]}
+          numberOfLines={1}
+          animationDuration={0}
+          testID="instant-truncation"
+        />
+      </View>
     </ScrollView>
   );
 }
@@ -249,6 +316,12 @@ const styles = StyleSheet.create({
   linkStatus: {
     fontSize: 12,
     color: '#888888',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  tapHint: {
+    fontSize: 12,
+    color: '#007AFF',
     marginTop: 4,
     fontStyle: 'italic',
   },

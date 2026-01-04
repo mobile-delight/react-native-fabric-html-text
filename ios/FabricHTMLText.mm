@@ -31,6 +31,8 @@ using namespace facebook::react;
  */
 @implementation FabricHTMLText {
     FabricHTMLCoreTextView *_coreTextView;
+    CGFloat _previousHeight;
+    BOOL _hasInitializedLayout;
 }
 
 + (ComponentDescriptorProvider)componentDescriptorProvider
@@ -49,6 +51,9 @@ using namespace facebook::react;
         _coreTextView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
 
         self.contentView = _coreTextView;
+
+        _previousHeight = 0;
+        _hasInitializedLayout = NO;
     }
     return self;
 }
@@ -56,7 +61,25 @@ using namespace facebook::react;
 - (void)layoutSubviews
 {
     [super layoutSubviews];
-    _coreTextView.frame = self.bounds;
+
+    CGFloat newHeight = self.bounds.size.height;
+    CGFloat animDuration = _coreTextView.animationDuration;
+
+    // Check if we should animate the height change
+    if (_hasInitializedLayout && newHeight != _previousHeight && animDuration > 0) {
+        // Animate the content view's frame change
+        [UIView animateWithDuration:animDuration
+                              delay:0
+                            options:UIViewAnimationOptionCurveEaseInOut
+                         animations:^{
+            self->_coreTextView.frame = self.bounds;
+        } completion:nil];
+    } else {
+        _coreTextView.frame = self.bounds;
+    }
+
+    _previousHeight = newHeight;
+    _hasInitializedLayout = YES;
 }
 
 - (UIView *)renderer
@@ -94,6 +117,13 @@ using namespace facebook::react;
         buildAttributedStringFromCppAttributedString:attributedString
                                         withLinkUrls:linkUrls];
 
+    // Extract numberOfLines and animationDuration from state
+    int numberOfLines = stateData.numberOfLines;
+    Float animationDuration = stateData.animationDuration;
+
+    // Update CoreText view properties
+    _coreTextView.numberOfLines = numberOfLines;
+    _coreTextView.animationDuration = animationDuration;
     _coreTextView.attributedText = nsAttributedString;
 }
 
