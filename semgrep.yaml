@@ -34,15 +34,11 @@ rules:
     message: "setTimeout/setInterval with string argument is equivalent to eval()."
     severity: ERROR
     languages: [typescript, javascript]
-    patterns:
-      - pattern-either:
-          - pattern: setTimeout($STRING, ...)
-          - pattern: setInterval($STRING, ...)
-    metavariable-pattern:
-      metavariable: $STRING
-      pattern-either:
-        - pattern: '"..."'
-        - pattern: '`...`'
+    pattern-either:
+      - pattern: setTimeout("...", ...)
+      - pattern: setInterval("...", ...)
+      - pattern: setTimeout(`...`, ...)
+      - pattern: setInterval(`...`, ...)
 
   - id: validate-href-protocol
     message: "URL href must be validated against dangerous protocols (javascript:, data:, vbscript:)."

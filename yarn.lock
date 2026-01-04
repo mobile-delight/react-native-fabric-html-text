@@ -4062,7 +4062,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@typescript-eslint/eslint-plugin@npm:^8.36.0":
+"@typescript-eslint/eslint-plugin@npm:^8.33.0, @typescript-eslint/eslint-plugin@npm:^8.36.0":
   version: 8.51.0
   resolution: "@typescript-eslint/eslint-plugin@npm:8.51.0"
   dependencies:
@@ -4082,7 +4082,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@typescript-eslint/parser@npm:^8.36.0":
+"@typescript-eslint/parser@npm:^8.33.0, @typescript-eslint/parser@npm:^8.36.0":
   version: 8.51.0
   resolution: "@typescript-eslint/parser@npm:8.51.0"
   dependencies:
@@ -7722,7 +7722,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"eslint@npm:^9.35.0":
+"eslint@npm:^9.28.0, eslint@npm:^9.35.0":
   version: 9.39.2
   resolution: "eslint@npm:9.39.2"
   dependencies:
@@ -12828,6 +12828,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "react-native-fabric-html-text-e2e@workspace:e2e"
   dependencies:
+    "@typescript-eslint/eslint-plugin": "npm:^8.33.0"
+    "@typescript-eslint/parser": "npm:^8.33.0"
     "@wdio/appium-service": "npm:^9.18.0"
     "@wdio/cli": "npm:^9.18.4"
     "@wdio/local-runner": "npm:^9.18.4"
@@ -12835,6 +12837,7 @@ __metadata:
     "@wdio/spec-reporter": "npm:^9.18.0"
     appium: "npm:^3.1.2"
     appium-xcuitest-driver: "npm:^10.14.2"
+    eslint: "npm:^9.28.0"
     tsx: "npm:^4.19.2"
     typescript: "npm:^5.9.2"
   languageName: unknown
