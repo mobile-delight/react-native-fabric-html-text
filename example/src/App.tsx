@@ -6,19 +6,482 @@ import {
   Alert,
   View,
   TouchableOpacity,
+  useColorScheme,
 } from 'react-native';
 import {
   HTMLText,
   type DetectedContentType,
 } from 'react-native-fabric-html-text';
+import { HTMLText as NativeWindHTMLText } from 'react-native-fabric-html-text/nativewind';
+import '../global.css';
 
-// Debug mode: adds visible borders around HTMLText components
-const DEBUG_BOUNDS = true;
+type StylingMode = 'stylesheet' | 'nativewind';
+
+function SegmentedControl({
+  value,
+  onChange,
+}: {
+  value: StylingMode;
+  onChange: (mode: StylingMode) => void;
+}): React.JSX.Element {
+  return (
+    <View style={styles.segmentedControl}>
+      <TouchableOpacity
+        style={[styles.segment, value === 'stylesheet' && styles.segmentActive]}
+        onPress={() => onChange('stylesheet')}
+      >
+        <Text
+          style={[
+            styles.segmentText,
+            value === 'stylesheet' && styles.segmentTextActive,
+          ]}
+        >
+          StyleSheet
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.segment, value === 'nativewind' && styles.segmentActive]}
+        onPress={() => onChange('nativewind')}
+      >
+        <Text
+          style={[
+            styles.segmentText,
+            value === 'nativewind' && styles.segmentTextActive,
+          ]}
+        >
+          NativeWind
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function StyleSheetExamples({
+  onLinkPress,
+  expandedText,
+  toggleExpanded,
+  numberOfLinesDemo,
+  cycleNumberOfLines,
+}: {
+  onLinkPress: (url: string, type: DetectedContentType) => void;
+  expandedText: boolean;
+  toggleExpanded: () => void;
+  numberOfLinesDemo: number;
+  cycleNumberOfLines: () => void;
+}): React.JSX.Element {
+  return (
+    <>
+      <Text style={styles.sectionTitle}>Basic Formatting</Text>
+      <HTMLText
+        html="<h1>Hello World</h1><p>This is <strong>bold</strong> and <em>italic</em> text.</p>"
+        style={styles.text}
+        testID="basic-formatting"
+      />
+
+      <Text style={styles.sectionTitle}>Links</Text>
+      <HTMLText
+        html='<p>Visit <a href="https://example.com">Example.com</a> or <a href="https://react-native.dev">React Native Docs</a>.</p>'
+        style={styles.text}
+        onLinkPress={onLinkPress}
+        testID="links-example"
+      />
+
+      <Text style={styles.sectionTitle}>Unordered List</Text>
+      <HTMLText
+        html="<ul><li>First item</li><li>Second item</li><li>Third item</li></ul>"
+        style={styles.text}
+        testID="unordered-list"
+      />
+
+      <Text style={styles.sectionTitle}>Ordered List</Text>
+      <HTMLText
+        html="<ol><li>Step one</li><li>Step two</li><li>Step three</li></ol>"
+        style={styles.text}
+        testID="ordered-list"
+      />
+
+      <Text style={styles.sectionTitle}>Nested Lists</Text>
+      <HTMLText
+        html="<ul><li>Parent item<ul><li>Child item 1</li><li>Child item 2</li></ul></li><li>Another parent</li></ul>"
+        style={styles.text}
+        testID="nested-lists"
+      />
+
+      <Text style={styles.sectionTitle}>Custom Tag Styles</Text>
+      <HTMLText
+        html="<p>Normal text with <strong>custom red bold</strong> and <em>custom blue italic</em>.</p>"
+        style={styles.text}
+        tagStyles={{
+          strong: { color: '#CC0000' },
+          em: { color: '#0066CC' },
+        }}
+        testID="custom-tag-styles"
+      />
+
+      <Text style={styles.sectionTitle}>Native HTML Text Decoration</Text>
+      <HTMLText
+        html="<p>Text with <u>underline tag</u> and <s>strikethrough tag</s> using native HTML.</p>"
+        style={styles.text}
+        testID="native-text-decoration"
+      />
+
+      <Text style={styles.sectionTitle}>Phone Detection</Text>
+      <HTMLText
+        html="<p>Call us at 555-123-4567 for support.</p>"
+        style={styles.text}
+        detectPhoneNumbers
+        onLinkPress={onLinkPress}
+        testID="phone-detection"
+      />
+
+      <Text style={styles.sectionTitle}>Email Detection</Text>
+      <HTMLText
+        html="<p>Contact support@example.com for help.</p>"
+        style={styles.text}
+        detectEmails
+        onLinkPress={onLinkPress}
+        testID="email-detection"
+      />
+
+      <Text style={styles.sectionTitle}>All Detection Types</Text>
+      <HTMLText
+        html='<p>Visit <a href="https://example.com">our site</a>, call 555-987-6543, or email info@test.com.</p>'
+        style={styles.text}
+        detectLinks
+        detectPhoneNumbers
+        detectEmails
+        onLinkPress={onLinkPress}
+        testID="all-detection"
+      />
+
+      <Text style={styles.sectionTitle}>XSS Security Test</Text>
+      <HTMLText
+        html='<p>Malicious: <a href="javascript:alert(1)">javascript link</a> should be blocked.</p>'
+        style={styles.text}
+        onLinkPress={onLinkPress}
+        testID="xss-security-test"
+      />
+
+      <Text style={styles.sectionTitle}>Complex Content</Text>
+      <HTMLText
+        html={`
+          <h2>Feature Overview</h2>
+          <p>The <strong>HTMLText</strong> component supports:</p>
+          <ul>
+            <li><strong>Links</strong> - Tappable with callbacks</li>
+            <li><em>Lists</em> - Ordered and unordered</li>
+            <li>Custom <a href="https://styles.example">styling</a></li>
+          </ul>
+        `}
+        style={styles.text}
+        onLinkPress={onLinkPress}
+        tagStyles={{
+          h2: { color: '#333333', fontSize: 20 },
+          a: { color: '#007AFF' },
+        }}
+        testID="complex-content"
+      />
+
+      <Text style={styles.sectionTitle}>Expand/Collapse</Text>
+      <TouchableOpacity onPress={toggleExpanded} activeOpacity={0.7}>
+        <HTMLText
+          html="<p>This is a <strong>longer paragraph</strong> that demonstrates the <em>numberOfLines</em> feature. When collapsed, only 2 lines show. Tap to expand or collapse.</p>"
+          style={styles.text}
+          numberOfLines={expandedText ? 0 : 2}
+          animationDuration={0.3}
+          testID="expand-collapse-demo"
+        />
+        <Text style={styles.tapHint}>
+          Tap to {expandedText ? 'collapse' : 'expand'}
+        </Text>
+      </TouchableOpacity>
+
+      <Text style={styles.sectionTitle}>Dynamic numberOfLines</Text>
+      <TouchableOpacity onPress={cycleNumberOfLines} activeOpacity={0.7}>
+        <HTMLText
+          html="<p>This example cycles through <strong>numberOfLines</strong> values: 1, 2, 3, unlimited. Each tap changes the limit with smooth animation.</p>"
+          style={styles.text}
+          numberOfLines={numberOfLinesDemo}
+          animationDuration={0.2}
+          testID="dynamic-lines-demo"
+        />
+        <Text style={styles.tapHint}>
+          Lines: {numberOfLinesDemo === 0 ? 'unlimited' : numberOfLinesDemo}{' '}
+          (tap)
+        </Text>
+      </TouchableOpacity>
+    </>
+  );
+}
+
+function NativeWindExamples({
+  onLinkPress,
+  expandedText,
+  toggleExpanded,
+  numberOfLinesDemo,
+  cycleNumberOfLines,
+  colorScheme,
+}: {
+  onLinkPress: (url: string, type: DetectedContentType) => void;
+  expandedText: boolean;
+  toggleExpanded: () => void;
+  numberOfLinesDemo: number;
+  cycleNumberOfLines: () => void;
+  colorScheme: string | null | undefined;
+}): React.JSX.Element {
+  return (
+    <>
+      <Text style={styles.sectionTitle}>Basic Formatting</Text>
+      <NativeWindHTMLText
+        html="<h1>Hello World</h1><p>This is <strong>bold</strong> and <em>italic</em> text.</p>"
+        className="text-base leading-6"
+        testID="nw-basic-formatting"
+      />
+
+      <Text style={styles.sectionTitle}>Links</Text>
+      <NativeWindHTMLText
+        html='<p>Visit <a href="https://example.com">Example.com</a> or <a href="https://react-native.dev">React Native Docs</a>.</p>'
+        className="text-base leading-6"
+        onLinkPress={onLinkPress}
+        testID="nw-links-example"
+      />
+
+      <Text style={styles.sectionTitle}>Unordered List</Text>
+      <NativeWindHTMLText
+        html="<ul><li>First item</li><li>Second item</li><li>Third item</li></ul>"
+        className="text-base leading-6"
+        testID="nw-unordered-list"
+      />
+
+      <Text style={styles.sectionTitle}>Ordered List</Text>
+      <NativeWindHTMLText
+        html="<ol><li>Step one</li><li>Step two</li><li>Step three</li></ol>"
+        className="text-base leading-6"
+        testID="nw-ordered-list"
+      />
+
+      <Text style={styles.sectionTitle}>Nested Lists</Text>
+      <NativeWindHTMLText
+        html="<ul><li>Parent item<ul><li>Child item 1</li><li>Child item 2</li></ul></li><li>Another parent</li></ul>"
+        className="text-base leading-6"
+        testID="nw-nested-lists"
+      />
+
+      <Text style={styles.sectionTitle}>
+        Custom Tag Styles (tagStyles prop)
+      </Text>
+      <NativeWindHTMLText
+        html="<p>Normal text with <strong>custom red bold</strong> and <em>custom blue italic</em>.</p>"
+        className="text-base leading-6"
+        tagStyles={{
+          strong: { color: '#CC0000' },
+          em: { color: '#0066CC' },
+        }}
+        testID="nw-custom-tag-styles"
+      />
+
+      <Text style={styles.sectionTitle}>Native HTML Text Decoration</Text>
+      <NativeWindHTMLText
+        html="<p>Text with <u>underline tag</u> and <s>strikethrough tag</s> using native HTML.</p>"
+        className="text-base leading-6"
+        testID="nw-native-text-decoration"
+      />
+
+      <Text style={styles.sectionTitle}>Phone Detection</Text>
+      <NativeWindHTMLText
+        html="<p>Call us at 555-123-4567 for support.</p>"
+        className="text-base leading-6"
+        detectPhoneNumbers
+        onLinkPress={onLinkPress}
+        testID="nw-phone-detection"
+      />
+
+      <Text style={styles.sectionTitle}>Email Detection</Text>
+      <NativeWindHTMLText
+        html="<p>Contact support@example.com for help.</p>"
+        className="text-base leading-6"
+        detectEmails
+        onLinkPress={onLinkPress}
+        testID="nw-email-detection"
+      />
+
+      <Text style={styles.sectionTitle}>All Detection Types</Text>
+      <NativeWindHTMLText
+        html='<p>Visit <a href="https://example.com">our site</a>, call 555-987-6543, or email info@test.com.</p>'
+        className="text-base leading-6"
+        detectLinks
+        detectPhoneNumbers
+        detectEmails
+        onLinkPress={onLinkPress}
+        testID="nw-all-detection"
+      />
+
+      <Text style={styles.sectionTitle}>XSS Security Test</Text>
+      <NativeWindHTMLText
+        html='<p>Malicious: <a href="javascript:alert(1)">javascript link</a> should be blocked.</p>'
+        className="text-base leading-6"
+        onLinkPress={onLinkPress}
+        testID="nw-xss-security-test"
+      />
+
+      <Text style={styles.sectionTitle}>Complex Content</Text>
+      <NativeWindHTMLText
+        html={`
+          <h2>Feature Overview</h2>
+          <p>The <strong>HTMLText</strong> component supports:</p>
+          <ul>
+            <li><strong>Links</strong> - Tappable with callbacks</li>
+            <li><em>Lists</em> - Ordered and unordered</li>
+            <li>Custom <a href="https://styles.example">styling</a></li>
+          </ul>
+        `}
+        className="text-base leading-6"
+        onLinkPress={onLinkPress}
+        tagStyles={{
+          h2: { color: '#333333', fontSize: 20 },
+          a: { color: '#007AFF' },
+        }}
+        testID="nw-complex-content"
+      />
+
+      <Text style={styles.sectionTitle}>Expand/Collapse</Text>
+      <TouchableOpacity onPress={toggleExpanded} activeOpacity={0.7}>
+        <NativeWindHTMLText
+          html="<p>This is a <strong>longer paragraph</strong> that demonstrates the <em>numberOfLines</em> feature. When collapsed, only 2 lines show. Tap to expand or collapse.</p>"
+          className="text-base leading-6"
+          numberOfLines={expandedText ? 0 : 2}
+          animationDuration={0.3}
+          testID="nw-expand-collapse-demo"
+        />
+        <Text style={styles.tapHint}>
+          Tap to {expandedText ? 'collapse' : 'expand'}
+        </Text>
+      </TouchableOpacity>
+
+      <Text style={styles.sectionTitle}>Dynamic numberOfLines</Text>
+      <TouchableOpacity onPress={cycleNumberOfLines} activeOpacity={0.7}>
+        <NativeWindHTMLText
+          html="<p>This example cycles through <strong>numberOfLines</strong> values: 1, 2, 3, unlimited. Each tap changes the limit with smooth animation.</p>"
+          className="text-base leading-6"
+          numberOfLines={numberOfLinesDemo}
+          animationDuration={0.2}
+          testID="nw-dynamic-lines-demo"
+        />
+        <Text style={styles.tapHint}>
+          Lines: {numberOfLinesDemo === 0 ? 'unlimited' : numberOfLinesDemo}{' '}
+          (tap)
+        </Text>
+      </TouchableOpacity>
+
+      <Text style={styles.nativeWindOnlyTitle}>NativeWind-Only Features</Text>
+
+      <Text style={styles.sectionTitle}>Viewport Responsive Text</Text>
+      <NativeWindHTMLText
+        html="<p>This text scales based on <strong>viewport width</strong>: small on phones, medium on tablets, larger on desktop.</p>"
+        className="text-sm md:text-base lg:text-lg leading-relaxed text-gray-700"
+        testID="nw-responsive"
+      />
+
+      <Text style={styles.sectionTitle}>Container Query - Full Width</Text>
+      <View className="@container w-full bg-slate-100 p-2 rounded-lg">
+        <NativeWindHTMLText
+          html="<p>Inside a <strong>full-width container</strong>. Text responds to container size, not viewport.</p>"
+          className="text-sm @sm:text-base @md:text-lg @lg:text-xl leading-relaxed text-slate-700"
+          testID="nw-container-full"
+        />
+      </View>
+
+      <Text style={styles.sectionTitle}>Container Query - Half Width</Text>
+      <View className="@container w-1/2 bg-amber-100 p-2 rounded-lg">
+        <NativeWindHTMLText
+          html="<p>Inside a <strong>half-width container</strong>. Same classes, different result!</p>"
+          className="text-sm @sm:text-base @md:text-lg @lg:text-xl leading-relaxed text-amber-800"
+          testID="nw-container-half"
+        />
+      </View>
+
+      <Text style={styles.sectionTitle}>Container Query - Side by Side</Text>
+      <View className="flex-row gap-2">
+        <View className="@container flex-1 bg-emerald-100 p-2 rounded-lg">
+          <NativeWindHTMLText
+            html="<p><strong>Left</strong> container adapts independently.</p>"
+            className="text-xs @sm:text-sm @md:text-base leading-snug text-emerald-800"
+            testID="nw-container-left"
+          />
+        </View>
+        <View className="@container flex-1 bg-violet-100 p-2 rounded-lg">
+          <NativeWindHTMLText
+            html="<p><strong>Right</strong> container adapts independently.</p>"
+            className="text-xs @sm:text-sm @md:text-base leading-snug text-violet-800"
+            testID="nw-container-right"
+          />
+        </View>
+      </View>
+
+      <Text style={styles.sectionTitle}>Container Query - Named</Text>
+      <View className="@container/card w-full bg-rose-100 p-3 rounded-lg">
+        <NativeWindHTMLText
+          html="<p>This uses a <strong>named container</strong> (@container/card) for more precise targeting.</p>"
+          className="text-sm @sm/card:text-base @md/card:text-lg leading-relaxed text-rose-800"
+          testID="nw-container-named"
+        />
+      </View>
+
+      <Text style={styles.sectionTitle}>Container Query - Nested</Text>
+      <View className="@container bg-sky-100 p-3 rounded-lg">
+        <NativeWindHTMLText
+          html="<p><strong>Outer</strong> container text.</p>"
+          className="text-sm @md:text-base leading-relaxed text-sky-800 mb-2"
+          testID="nw-container-outer"
+        />
+        <View className="@container bg-sky-200 p-2 rounded">
+          <NativeWindHTMLText
+            html="<p><strong>Inner</strong> container responds to its own size.</p>"
+            className="text-xs @sm:text-sm leading-snug text-sky-900"
+            testID="nw-container-inner"
+          />
+        </View>
+      </View>
+
+      <Text style={styles.sectionTitle}>
+        Dark Mode (current: {colorScheme ?? 'light'})
+      </Text>
+      <NativeWindHTMLText
+        html="<p>This text adapts to <strong>dark mode</strong>. Toggle your system theme to see colors change.</p>"
+        className="text-base leading-6 text-gray-900 dark:text-gray-100"
+        testID="nw-dark-mode"
+      />
+
+      <Text style={styles.sectionTitle}>Color Utilities</Text>
+      <NativeWindHTMLText
+        html="<p><strong>Primary theme:</strong> Using Tailwind's color palette for consistent styling.</p>"
+        className="text-base leading-6 text-blue-600 bg-blue-50 p-3 rounded-lg"
+        testID="nw-colors"
+      />
+
+      <Text style={styles.sectionTitle}>Spacing Utilities</Text>
+      <NativeWindHTMLText
+        html="<p>This text has <em>padding</em> and <strong>margin</strong> via Tailwind classes.</p>"
+        className="text-base leading-6 text-gray-800 p-4 m-2 bg-amber-100 rounded"
+        testID="nw-spacing"
+      />
+
+      <Text style={styles.sectionTitle}>Typography Variants</Text>
+      <NativeWindHTMLText
+        html="<p>Large, bold, indigo text with tracking.</p>"
+        className="text-xl font-bold text-indigo-600 tracking-wide"
+        testID="nw-typography"
+      />
+    </>
+  );
+}
 
 export default function App(): React.JSX.Element {
+  const [stylingMode, setStylingMode] = useState<StylingMode>('stylesheet');
   const [lastLinkPressed, setLastLinkPressed] = useState<string | null>(null);
   const [expandedText, setExpandedText] = useState(false);
   const [numberOfLinesDemo, setNumberOfLinesDemo] = useState(2);
+  const colorScheme = useColorScheme();
 
   const handleLinkPress = useCallback(
     (url: string, type: DetectedContentType) => {
@@ -37,268 +500,102 @@ export default function App(): React.JSX.Element {
       if (prev === 0) return 1;
       if (prev === 1) return 2;
       if (prev === 2) return 3;
-      return 0; // 0 = no limit
+      return 0;
     });
   }, []);
 
   return (
-    <ScrollView
-      style={styles.scrollView}
-      contentContainerStyle={styles.container}
-    >
-      <Text style={styles.sectionTitle}>Basic Formatting</Text>
-      <View style={DEBUG_BOUNDS ? styles.debugContainer1 : undefined}>
-        <HTMLText
-          html="<h1>Hello World</h1><p>This is <strong>bold</strong> and <em>italic</em> text.</p>"
-          style={[styles.text, DEBUG_BOUNDS && styles.debugText1]}
-          testID="basic-formatting"
-        />
+    <View style={styles.root}>
+      <View style={styles.header}>
+        <Text style={styles.title}>HTMLText Examples</Text>
+        <SegmentedControl value={stylingMode} onChange={setStylingMode} />
+        {lastLinkPressed && (
+          <Text style={styles.linkStatus}>Last link: {lastLinkPressed}</Text>
+        )}
       </View>
 
-      <Text style={styles.sectionTitle}>Links</Text>
-      <View style={DEBUG_BOUNDS ? styles.debugContainer2 : undefined}>
-        <HTMLText
-          html='<p>Visit <a href="https://example.com">Example.com</a> or <a href="https://react-native.dev">React Native Docs</a>.</p>'
-          style={[styles.text, DEBUG_BOUNDS && styles.debugText2]}
-          onLinkPress={handleLinkPress}
-          testID="links-example"
-        />
-      </View>
-      {lastLinkPressed && (
-        <Text style={styles.linkStatus} testID="last-link-pressed">
-          Last link: {lastLinkPressed}
-        </Text>
-      )}
-
-      <Text style={styles.sectionTitle}>Unordered List</Text>
-      <View style={DEBUG_BOUNDS ? styles.debugContainer1 : undefined}>
-        <HTMLText
-          html="<ul><li>First item</li><li>Second item</li><li>Third item</li></ul>"
-          style={[styles.text, DEBUG_BOUNDS && styles.debugText1]}
-          testID="unordered-list"
-        />
-      </View>
-
-      <Text style={styles.sectionTitle}>Ordered List</Text>
-      <View style={DEBUG_BOUNDS ? styles.debugContainer2 : undefined}>
-        <HTMLText
-          html="<ol><li>Step one</li><li>Step two</li><li>Step three</li></ol>"
-          style={[styles.text, DEBUG_BOUNDS && styles.debugText2]}
-          testID="ordered-list"
-        />
-      </View>
-
-      <Text style={styles.sectionTitle}>Nested Lists</Text>
-      <View style={DEBUG_BOUNDS ? styles.debugContainer1 : undefined}>
-        <HTMLText
-          html="<ul><li>Parent item<ul><li>Child item 1</li><li>Child item 2</li></ul></li><li>Another parent</li></ul>"
-          style={[styles.text, DEBUG_BOUNDS && styles.debugText1]}
-          testID="nested-lists"
-        />
-      </View>
-
-      <Text style={styles.sectionTitle}>Custom Tag Styles</Text>
-      <View style={DEBUG_BOUNDS ? styles.debugContainer2 : undefined}>
-        <HTMLText
-          html="<p>Normal text with <strong>custom red bold</strong> and <em>custom blue italic</em>.</p>"
-          style={[styles.text, DEBUG_BOUNDS && styles.debugText2]}
-          tagStyles={{
-            strong: { color: '#CC0000' },
-            em: { color: '#0066CC' },
-          }}
-          testID="custom-tag-styles"
-        />
-      </View>
-
-      <Text style={styles.sectionTitle}>TagStyles: Full TextStyle Parity</Text>
-      <View style={DEBUG_BOUNDS ? styles.debugContainer1 : undefined}>
-        <HTMLText
-          html="<p>Normal <strong>LARGER BOLD RED</strong> and <em>italic blue underlined</em> text.</p>"
-          style={[styles.text, DEBUG_BOUNDS && styles.debugText1]}
-          tagStyles={{
-            strong: {
-              color: '#CC0000',
-              fontSize: 20,
-              fontWeight: 'bold',
-            },
-            em: {
-              color: '#0066CC',
-              fontStyle: 'italic',
-              textDecorationLine: 'underline',
-            },
-          }}
-          testID="tagstyles-full-parity"
-        />
-      </View>
-
-      <Text style={styles.sectionTitle}>TagStyles: Text Decoration</Text>
-      <View style={DEBUG_BOUNDS ? styles.debugContainer2 : undefined}>
-        <HTMLText
-          html="<p>Normal <strong>strikethrough</strong> and <em>underlined</em> text.</p>"
-          style={[styles.text, DEBUG_BOUNDS && styles.debugText2]}
-          tagStyles={{
-            strong: {
-              textDecorationLine: 'line-through',
-              color: '#666666',
-            },
-            em: {
-              textDecorationLine: 'underline',
-              color: '#007AFF',
-            },
-          }}
-          testID="tagstyles-decoration"
-        />
-      </View>
-
-      <Text style={styles.sectionTitle}>Native HTML Text Decoration</Text>
-      <View style={DEBUG_BOUNDS ? styles.debugContainer1 : undefined}>
-        <HTMLText
-          html="<p>Text with <u>underline tag</u> and <s>strikethrough tag</s> using native HTML.</p>"
-          style={[styles.text, DEBUG_BOUNDS && styles.debugText1]}
-          testID="native-text-decoration"
-        />
-      </View>
-
-      <Text style={styles.sectionTitle}>Links with Custom Styles</Text>
-      <View style={DEBUG_BOUNDS ? styles.debugContainer2 : undefined}>
-        <HTMLText
-          html='<p>Click <a href="https://styled-link.com">this styled link</a> to test.</p>'
-          style={[styles.text, DEBUG_BOUNDS && styles.debugText2]}
-          onLinkPress={handleLinkPress}
-          tagStyles={{
-            a: { color: '#9900CC' },
-          }}
-          testID="styled-links"
-        />
-      </View>
-
-      <Text style={styles.sectionTitle}>Phone Number Detection</Text>
-      <View style={DEBUG_BOUNDS ? styles.debugContainer1 : undefined}>
-        <HTMLText
-          html="<p>555-123-4567 is our support line.</p>"
-          style={[styles.text, DEBUG_BOUNDS && styles.debugText1]}
-          detectPhoneNumbers
-          onLinkPress={handleLinkPress}
-          testID="phone-detection"
-        />
-      </View>
-
-      <Text style={styles.sectionTitle}>Email Detection</Text>
-      <View style={DEBUG_BOUNDS ? styles.debugContainer2 : undefined}>
-        <HTMLText
-          html="<p>Contact support@example.com or sales@company.org for help.</p>"
-          style={[styles.text, DEBUG_BOUNDS && styles.debugText2]}
-          detectEmails
-          onLinkPress={handleLinkPress}
-          testID="email-detection"
-        />
-      </View>
-
-      <Text style={styles.sectionTitle}>All Detection Types</Text>
-      <View style={DEBUG_BOUNDS ? styles.debugContainer1 : undefined}>
-        <HTMLText
-          html='<p>Visit <a href="https://example.com">our site</a>, call 555-987-6543, or email info@test.com.</p>'
-          style={[styles.text, DEBUG_BOUNDS && styles.debugText1]}
-          detectLinks
-          detectPhoneNumbers
-          detectEmails
-          onLinkPress={handleLinkPress}
-          testID="all-detection"
-        />
-      </View>
-
-      <Text style={styles.sectionTitle}>
-        XSS Security Test (Should NOT be clickable)
-      </Text>
-      <View style={DEBUG_BOUNDS ? styles.debugContainer1 : undefined}>
-        <HTMLText
-          html='<p>Malicious: <a href="javascript:alert(1)">javascript link</a> and <a href="data:text/html,<script>alert(2)</script>">data link</a> should be blocked.</p>'
-          style={[styles.text, DEBUG_BOUNDS && styles.debugText1]}
-          onLinkPress={handleLinkPress}
-          testID="xss-security-test"
-        />
-      </View>
-
-      <Text style={styles.sectionTitle}>Complex Content</Text>
-      <View style={DEBUG_BOUNDS ? styles.debugContainer2 : undefined}>
-        <HTMLText
-          html={`
-            <h2>Feature Overview</h2>
-            <p>The <strong>HTMLText</strong> component supports:</p>
-            <ul>
-              <li><strong>Links</strong> - Tappable with callbacks</li>
-              <li><em>Lists</em> - Ordered and unordered</li>
-              <li>Custom <a href="https://styles.example">styling</a></li>
-            </ul>
-            <p>For more info, visit <a href="https://docs.example.com">our documentation</a>.</p>
-          `}
-          style={[styles.text, DEBUG_BOUNDS && styles.debugText2]}
-          onLinkPress={handleLinkPress}
-          tagStyles={{
-            h2: { color: '#333333', fontSize: 20 },
-            a: { color: '#007AFF' },
-          }}
-          includeFontPadding={false}
-          testID="complex-content"
-        />
-      </View>
-
-      <Text style={styles.sectionTitle}>numberOfLines - Expand/Collapse</Text>
-      <TouchableOpacity onPress={toggleExpanded} activeOpacity={0.7}>
-        <View style={DEBUG_BOUNDS ? styles.debugContainer1 : undefined}>
-          <HTMLText
-            html="<p>This is a <strong>longer paragraph</strong> that demonstrates the <em>numberOfLines</em> feature. When collapsed, only the first 2 lines are shown with an ellipsis. Tap to expand or collapse this text. The height change is animated smoothly over 0.3 seconds using an ease-in-out timing curve.</p>"
-            style={[styles.text, DEBUG_BOUNDS && styles.debugText1]}
-            numberOfLines={expandedText ? 0 : 2}
-            animationDuration={0.3}
-            testID="expand-collapse-demo"
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.container}
+      >
+        {stylingMode === 'stylesheet' ? (
+          <StyleSheetExamples
+            onLinkPress={handleLinkPress}
+            expandedText={expandedText}
+            toggleExpanded={toggleExpanded}
+            numberOfLinesDemo={numberOfLinesDemo}
+            cycleNumberOfLines={cycleNumberOfLines}
           />
-        </View>
-        <Text style={styles.tapHint}>
-          Tap to {expandedText ? 'collapse' : 'expand'}
-        </Text>
-      </TouchableOpacity>
-
-      <Text style={styles.sectionTitle}>numberOfLines - Dynamic Control</Text>
-      <TouchableOpacity onPress={cycleNumberOfLines} activeOpacity={0.7}>
-        <View style={DEBUG_BOUNDS ? styles.debugContainer2 : undefined}>
-          <HTMLText
-            html="<p>This example cycles through different <strong>numberOfLines</strong> values: 1, 2, 3, and unlimited (0). Each tap changes the line limit and the height animates smoothly. The ellipsis is automatically added when content is truncated. This is useful for preview cards, article summaries, or any content that needs to be expandable.</p>"
-            style={[styles.text, DEBUG_BOUNDS && styles.debugText2]}
-            numberOfLines={numberOfLinesDemo}
-            animationDuration={0.2}
-            testID="dynamic-lines-demo"
+        ) : (
+          <NativeWindExamples
+            onLinkPress={handleLinkPress}
+            expandedText={expandedText}
+            toggleExpanded={toggleExpanded}
+            numberOfLinesDemo={numberOfLinesDemo}
+            cycleNumberOfLines={cycleNumberOfLines}
+            colorScheme={colorScheme}
           />
-        </View>
-        <Text style={styles.tapHint}>
-          numberOfLines:{' '}
-          {numberOfLinesDemo === 0 ? 'unlimited' : numberOfLinesDemo} (tap to
-          change)
-        </Text>
-      </TouchableOpacity>
-
-      <Text style={styles.sectionTitle}>numberOfLines - Instant Change</Text>
-      <View style={DEBUG_BOUNDS ? styles.debugContainer1 : undefined}>
-        <HTMLText
-          html="<p>This text has <em>numberOfLines={1}</em> with <strong>animationDuration={0}</strong>, meaning height changes are instant with no animation. Only one line is shown.</p>"
-          style={[styles.text, DEBUG_BOUNDS && styles.debugText1]}
-          numberOfLines={1}
-          animationDuration={0}
-          testID="instant-truncation"
-        />
-      </View>
-    </ScrollView>
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollView: {
+  root: {
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
+  header: {
+    paddingTop: 60,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5E5',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#000000',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  segmentedControl: {
+    flexDirection: 'row',
+    backgroundColor: '#F0F0F0',
+    borderRadius: 8,
+    padding: 2,
+  },
+  segment: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  segmentActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  segmentText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#666666',
+  },
+  segmentTextActive: {
+    color: '#007AFF',
+  },
+  scrollView: {
+    flex: 1,
+  },
   container: {
     padding: 16,
-    paddingTop: 60,
+    paddingBottom: 40,
   },
   sectionTitle: {
     fontSize: 14,
@@ -309,6 +606,14 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
+  nativeWindOnlyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0066CC',
+    marginTop: 32,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
   text: {
     fontSize: 16,
     lineHeight: 24,
@@ -316,31 +621,14 @@ const styles = StyleSheet.create({
   linkStatus: {
     fontSize: 12,
     color: '#888888',
-    marginTop: 4,
+    marginTop: 8,
     fontStyle: 'italic',
+    textAlign: 'center',
   },
   tapHint: {
     fontSize: 12,
     color: '#007AFF',
     marginTop: 4,
     fontStyle: 'italic',
-  },
-  // Debug styles - outer container (cyan border)
-  debugContainer1: {
-    borderWidth: 2,
-    borderColor: '#00CED1', // Dark cyan
-    borderStyle: 'solid',
-  },
-  debugContainer2: {
-    borderWidth: 2,
-    borderColor: '#FF6347', // Tomato red
-    borderStyle: 'solid',
-  },
-  // Debug styles - inner HTMLText (light backgrounds)
-  debugText1: {
-    backgroundColor: 'rgba(0, 206, 209, 0.15)', // Light cyan
-  },
-  debugText2: {
-    backgroundColor: 'rgba(255, 99, 71, 0.15)', // Light tomato
   },
 });

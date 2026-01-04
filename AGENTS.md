@@ -6,11 +6,15 @@ This document enforces the project constitution for AI agents. Read `.specify/me
 
 A Fabric-first HTML text renderer for React Native. This library parses HTML strings and renders them as native Text components with proper styling, using React Native's new architecture (Fabric).
 
+**Architecture**: This is primarily a **native library** built on Fabric's component model. Each platform has a custom ShadowNode implementation for layout measurement, using Fabric's `ConcreteComponentDescriptor` and shadow tree infrastructure. A shared C++ HTML parser (`cpp/FabricHTMLParser`) produces `AttributedString` fragments consumed by platform-specific renderers (CoreText on iOS, Spannable on Android). The React/TypeScript layer provides the JavaScript interface but rendering and measurement happen in native code.
+
 **Security context**: This library renders user-provided HTML content. XSS prevention and proper sanitization are critical security requirements.
 
 **Key characteristics**:
+- **Fabric ShadowNode**: Custom shadow nodes for accurate text measurement
+- **Shared C++ parser**: HTML → AttributedString conversion shared across platforms
+- **Native renderers**: CoreText (iOS), Spannable (Android) - not JS polyfills
 - Cross-platform (iOS, Android, Web)
-- Fabric-native (uses TurboModules and Fabric components)
 - DOMPurify-based sanitization
 - Allowlist-only HTML tags and attributes
 
@@ -149,17 +153,35 @@ yarn example android   # Run Android example
 ## Project Structure
 
 ```text
+# NATIVE CORE (primary implementation)
+cpp/                             # Shared C++ HTML parser
+└── FabricHTMLParser.cpp/h       # HTML → AttributedString conversion
+
+ios/                             # iOS Fabric component
+├── FabricHTMLTextShadowNode.*   # Custom ShadowNode for measurement
+├── FabricHTMLTextComponentDescriptor.h  # Fabric ComponentDescriptor
+├── FabricHTMLText.mm            # Objective-C++ view bridge
+├── FabricHTMLCoreTextView.*     # CoreText rendering
+└── *.swift                      # Swift utilities (sanitizer, etc.)
+
+android/                         # Android Fabric component
+├── src/main/jni/.../ShadowNodes.*  # Custom ShadowNode (C++)
+├── src/main/java/               # Kotlin view implementation
+└── src/main/react/              # ViewManager, Package
+
+# JAVASCRIPT INTERFACE
 src/
 ├── index.tsx                    # Public exports
-├── FabricHTMLTextNativeComponent.ts  # Codegen native component
+├── nativewind.ts                # NativeWind cssInterop wrapper
+├── FabricHTMLTextNativeComponent.ts  # Codegen native component spec
 ├── components/
 │   ├── HTMLText.tsx             # Native adapter router
-│   └── HTMLText.web.tsx         # Web implementation
+│   └── HTMLText.web.tsx         # Web implementation (standalone)
 ├── adapters/
 │   ├── native.tsx               # Native (iOS/Android) adapter
 │   └── web/
 │       └── StyleConverter.ts    # Web style utilities
-├── core/                        # Platform-agnostic (CRITICAL)
+├── core/                        # Platform-agnostic JS utilities
 │   ├── sanitize.ts              # Native sanitization
 │   ├── sanitize.web.ts          # Web sanitization (DOMPurify)
 │   ├── allowedHtml.ts           # Tag/attribute allowlists
@@ -169,17 +191,17 @@ src/
 │   └── codegen.d.ts             # Codegen type declarations
 └── __tests__/                   # Co-located tests
 
-ios/                             # iOS native module (Objective-C)
-android/                         # Android native module (Kotlin)
-cpp/                             # Shared C++ (if applicable)
 example/                         # Example app for testing
 e2e/                             # End-to-end tests (Appium)
 ```
 
 **Architecture rules:**
+- **C++ is the source of truth** for rendering logic on native platforms
+- Platform bindings (ios/, android/) bridge C++ to native UI frameworks
+- `src/` provides the React interface; it does NOT contain rendering logic
 - `src/core/` MUST have zero platform-specific code
 - Platform detection uses `Platform.OS` in adapters only
-- Components are pure (props in, rendering out)
+- Web implementation is standalone (no C++ dependency)
 
 ## CI/CD
 
@@ -253,10 +275,22 @@ Full governance rules: `.specify/memory/constitution.md`
 
 ## Active Technologies
 
+**Native (core implementation):**
+- C++17 — Shared rendering engine, Fabric component
+- Swift 5.x — iOS view implementation
+- Objective-C++ — iOS/C++ bridge layer
+- Kotlin 2.0.x — Android view implementation
+- JNI/C++ — Android/C++ bridge layer
+
+**JavaScript interface:**
 - TypeScript 5.9.x with strict mode
 - React Native 0.81.x (Fabric/New Architecture)
 - React 19.x / react-dom 19.x (for web)
+- NativeWind 4.x (optional) — Tailwind CSS integration
+
+**Tooling:**
 - DOMPurify 3.x for HTML sanitization
 - Jest 30.x + React Testing Library for tests
 - react-native-builder-bob for library builds
 - Yarn 4.x with workspaces
+- Xcode / Android Studio for native development

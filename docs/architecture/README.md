@@ -134,7 +134,8 @@ The following sequence diagram shows how components interact during rendering:
 
 | Stage | Input | Output | Location |
 |-------|-------|--------|----------|
-| 1. Component | HTML string | Props object | `src/components/HTMLText.tsx` |
+| 0. NativeWind (Optional) | `className` string | Style object | `src/nativewind.ts` via `cssInterop` |
+| 1. Component | HTML string + style | Props object | `src/components/HTMLText.tsx` |
 | 2. Adapter | Props | Native props | `src/adapters/native.tsx` |
 | 3. Sanitize | Raw HTML | Safe HTML | iOS: `FabricHTMLSanitizer.swift`, Android: `FabricHTMLSanitizer.kt` |
 | 4. Parse | Safe HTML | Text segments | `cpp/FabricHTMLParser.cpp` |
@@ -187,6 +188,7 @@ The library implements multiple layers of security with platform-specific strate
 | File | Purpose |
 |------|---------|
 | `index.tsx` | Public API exports |
+| `nativewind.ts` | NativeWind-compatible exports with `cssInterop` pre-applied |
 | `FabricHTMLTextNativeComponent.ts` | Codegen native component spec |
 | `components/HTMLText.tsx` | Main React component |
 | `components/HTMLText.web.tsx` | Web platform React component |
@@ -211,12 +213,12 @@ The library implements multiple layers of security with platform-specific strate
 |------|---------|
 | `FabricHTMLText.mm` | Fabric component view |
 | `FabricHTMLTextShadowNode.mm` | Measurement and state management |
+| `FabricHTMLTextComponentDescriptor.h` | Fabric component descriptor |
 | `FabricHTMLFragmentParser.mm` | C++ AttributedString to NSAttributedString conversion |
+| `FabricHTMLParsingUtils.mm` | Shared parsing utilities |
 | `FabricHTMLSanitizer.swift` | SwiftSoup HTML sanitizer |
 | `FabricHTMLCoreTextView.m` | CoreText-based rendering |
-| `FabricHTMLParsingUtils.mm` | Shared parsing utilities |
 | `FabricGeneratedConstants.swift` | Generated constants for styling |
-| `FabricHTMLTextComponentDescriptor.h` | Fabric component descriptor |
 
 #### Android JNI Layer (`android/src/main/jni/`)
 
@@ -227,15 +229,19 @@ The library implements multiple layers of security with platform-specific strate
 | `FabricHTMLTextState.cpp` | State management for Android |
 | `FabricHTMLTextState.h` | State interface |
 
-#### Android Kotlin Layer (`android/src/main/java/`)
+#### Android Kotlin Layer (`android/src/main/java/` and `react/`)
 
-| File | Purpose |
-|------|---------|
-| `FabricHTMLTextView.kt` | Custom TextView with state-based rendering |
-| `FabricHTMLSanitizer.kt` | OWASP HTML sanitizer |
-| `FabricHtmlSpannableBuilder.kt` | MapBuffer to Spannable conversion |
-| `FabricCustomLineHeightSpan.kt` | Custom line height span implementation |
-| `FabricGeneratedConstants.kt` | Generated constants for styling |
+| File | Purpose | Path |
+|------|---------|------|
+| `FabricHTMLTextViewManager.kt` | React Native view manager | `react/` |
+| `FabricHTMLTextView.kt` | Custom TextView with state-based rendering | `java/` |
+| `FabricHTMLLayoutManager.kt` | Layout measurement | `react/` |
+| `FabricHTMLFragmentParser.kt` | MapBuffer to Spannable conversion | `react/` |
+| `FabricHTMLSanitizer.kt` | OWASP HTML sanitizer | `java/` |
+| `FabricHtmlSpannableBuilder.kt` | Spannable construction | `java/` |
+| `FabricCustomLineHeightSpan.kt` | Custom line height span implementation | `java/` |
+| `FabricGeneratedConstants.kt` | Generated constants for styling | `java/` |
+| `FabricHtmlTextPackage.kt` | React Native package registration | `react/` |
 
 ## Core Concepts
 
@@ -320,6 +326,74 @@ Override styles for specific HTML tags:
 />
 ```
 
+## NativeWind Integration (Optional)
+
+The library provides optional [NativeWind](https://www.nativewind.dev/) support for Tailwind CSS styling in React Native. This enables using Tailwind's utility-first approach with `className` props.
+
+![NativeWind Integration](./nativewind-integration.svg)
+
+### How It Works
+
+NativeWind's `cssInterop` function bridges the gap between Tailwind's className strings and React Native's style objects:
+
+1. **Build Time**: NativeWind's Babel plugin processes JSX and Metro plugin processes CSS
+2. **Runtime**: `cssInterop` maps `className` props to `style` objects
+3. **Rendering**: The transformed styles flow through to native components
+
+### Integration Approaches
+
+**Pre-configured Export (Recommended)**
+
+Import from the `/nativewind` subpath for zero-config setup:
+
+```tsx
+import { HTMLText } from 'react-native-fabric-html-text/nativewind';
+
+<HTMLText
+  html="<p>Hello World</p>"
+  className="text-blue-500 text-lg p-4"
+/>
+```
+
+**Manual Integration**
+
+Apply `cssInterop` yourself for more control:
+
+```tsx
+import { HTMLText } from 'react-native-fabric-html-text';
+import { cssInterop } from 'nativewind';
+
+cssInterop(HTMLText, { className: 'style' });
+```
+
+### Configuration Requirements
+
+NativeWind integration requires specific configuration in the consumer app:
+
+| File | Purpose |
+|------|---------|
+| `babel.config.js` | Enables css-interop JSX transform and worklets plugin |
+| `metro.config.js` | Wraps config with `withNativeWind` for CSS processing |
+| `tailwind.config.js` | Configures content paths and px-based font sizes |
+| `global.css` | Contains Tailwind directives |
+
+**Important**: NativeWind's default rem-based font sizes differ from React Native's pixel values. Override `fontSize` and `lineHeight` in your Tailwind config with explicit pixel values for consistent styling.
+
+See [docs/nativewind-setup.md](../nativewind-setup.md) for complete setup instructions.
+
+### File Structure Impact
+
+The NativeWind integration adds one file to the JavaScript layer:
+
+| File | Purpose |
+|------|---------|
+| `src/nativewind.ts` | Pre-configured exports with `cssInterop` applied |
+
+This file:
+- Imports base components from main index
+- Applies `cssInterop` to map `className` → `style`
+- Re-exports components and types
+
 ## Performance Considerations
 
 1. **No Bridge Crossing**: Fabric's synchronous C++ layer eliminates async bridge overhead
@@ -327,3 +401,4 @@ Override styles for specific HTML tags:
 3. **Native Rendering**: CoreText (iOS) and TextView (Android) provide optimal rendering
 4. **Lazy Sanitization**: Sanitization happens only when HTML changes
 5. **MapBuffer**: Efficient binary serialization for state transfer (Android)
+6. **NativeWind Zero-Runtime**: Tailwind styles are compiled at build time, not runtime
