@@ -13,11 +13,11 @@
   },
   "dependencies": {
     "dompurify": "^3.2.0",
-    "next": "^14.2.0",
+    "next": "^14.2.32",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-native-fabric-html-text": "workspace:*",
-    "sanitize-html": "^2.13.0"
+    "sanitize-html": "^2.17.0"
   },
   "devDependencies": {
     "@tailwindcss/container-queries": "^0.1.1",
@@ -30,7 +30,7 @@
     "@types/react-dom": "^18",
     "autoprefixer": "^10.4.0",
     "eslint": "^8.57.0",
-    "eslint-config-next": "^14.2.0",
+    "eslint-config-next": "^14.2.32",
     "jest": "^29.7.0",
     "jest-axe": "^9.0.0",
     "jest-environment-jsdom": "^29.7.0",

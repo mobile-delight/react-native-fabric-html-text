@@ -1,22 +1,32 @@
 import DOMPurify from 'dompurify';
 
 import { ALLOWED_TAGS, ALLOWED_ATTR } from './allowedHtml';
+import { ALLOWED_PROTOCOLS } from './constants';
 
 export { ALLOWED_TAGS, ALLOWED_ATTR };
 
-// Pre-compute DOMPurify options
+// Build regex for allowed URI protocols
+const protocolPattern = ALLOWED_PROTOCOLS.join('|');
+const ALLOWED_URI_REGEXP = new RegExp(
+  `^(?:(?:${protocolPattern}):|[^a-z]|[a-z+.\\-]+(?:[^a-z+.\\-:]|$))`,
+  'i'
+);
+
+// Pre-compute DOMPurify options with protocol validation
 const DOMPURIFY_OPTIONS = {
   ALLOWED_TAGS: [...ALLOWED_TAGS],
   ALLOWED_ATTR: [...ALLOWED_ATTR],
   ALLOW_DATA_ATTR: false,
+  ALLOW_UNKNOWN_PROTOCOLS: false,
+  ALLOWED_URI_REGEXP,
 };
 
 // Pre-compute sanitize-html options (used server-side only)
 const SANITIZE_HTML_OPTIONS = {
   allowedTags: [...ALLOWED_TAGS],
   allowedAttributes: {
-    a: ['href', 'target', 'rel'],
-    img: ['src', 'alt', 'width', 'height'],
+    'a': ['href', 'target', 'rel'],
+    'img': ['src', 'alt', 'width', 'height'],
     '*': ALLOWED_ATTR.filter(
       (attr) =>
         !['href', 'target', 'rel', 'src', 'alt', 'width', 'height'].includes(
@@ -24,6 +34,12 @@ const SANITIZE_HTML_OPTIONS = {
         )
     ),
   },
+  allowedSchemes: [...ALLOWED_PROTOCOLS],
+  allowedSchemesByTag: {
+    a: [...ALLOWED_PROTOCOLS],
+    img: ['http', 'https', 'data'],
+  },
+  allowProtocolRelative: false,
   disallowedTagsMode: 'discard' as const,
 };
 
@@ -33,10 +49,13 @@ let sanitizeHtmlFn: ((html: string, options: object) => string) | null = null;
 function getSanitizeHtml(): (html: string, options: object) => string {
   if (sanitizeHtmlFn === null) {
     // Dynamic require for server-side only (webpack aliases to false on client)
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    sanitizeHtmlFn = require('sanitize-html');
+    // Using require() is intentional here for synchronous server-side loading
+    sanitizeHtmlFn = require('sanitize-html') as (
+      html: string,
+      options: object
+    ) => string;
   }
-  return sanitizeHtmlFn!;
+  return sanitizeHtmlFn;
 }
 
 /**

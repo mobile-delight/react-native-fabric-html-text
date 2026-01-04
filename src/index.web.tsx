@@ -12,7 +12,7 @@ export { sanitize, ALLOWED_TAGS, ALLOWED_ATTR } from './core/sanitize.web';
 export type DetectedContentType = 'link' | 'email' | 'phone';
 
 // FabricHTMLText is not available on web - provide a helpful error if accessed
-export const FabricHTMLText = () => {
+export const FabricHTMLText = (): never => {
   throw new Error(
     'FabricHTMLText is not available on web. Use HTMLText instead.'
   );

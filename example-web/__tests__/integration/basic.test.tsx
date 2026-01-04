@@ -3,11 +3,19 @@ import BasicPage from '@/app/basic/page';
 
 // Mock HTMLText component since we're testing page structure, not component internals
 jest.mock('react-native-fabric-html-text', () => {
-  return function MockHTMLText({ html, onLinkPress }: { html: string; onLinkPress?: (url: string, type: string) => void }) {
+  // Import DOMPurify inside the mock factory for Jest module isolation
+  const purify = jest.requireActual('dompurify');
+  return function MockHTMLText({
+    html,
+    onLinkPress,
+  }: {
+    html: string;
+    onLinkPress?: (url: string, type: string) => void;
+  }) {
     return (
       <div
         data-testid="html-text"
-        dangerouslySetInnerHTML={{ __html: html }}
+        dangerouslySetInnerHTML={{ __html: purify.sanitize(html) }}
         onClick={(e) => {
           if (onLinkPress) {
             const target = e.target as HTMLElement;
@@ -33,7 +41,9 @@ describe('Basic Page - Integration', () => {
 
   it('renders page description', () => {
     render(<BasicPage />);
-    expect(screen.getByText(/Demonstrations of basic HTML rendering/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Demonstrations of basic HTML rendering/)
+    ).toBeInTheDocument();
   });
 
   it('renders all demo sections', () => {
@@ -114,11 +124,17 @@ describe('Basic Page - Integration', () => {
     const htmlTexts = screen.getAllByTestId('html-text');
     // Sixth demo is links (default)
     const linkDemo = htmlTexts[5];
-    expect(linkDemo.querySelector('a')).toHaveAttribute('href', 'https://github.com');
+    expect(linkDemo.querySelector('a')).toHaveAttribute(
+      'href',
+      'https://github.com'
+    );
 
     // Seventh demo is links (with onLinkPress)
     const linkPressDemo = htmlTexts[6];
-    expect(linkPressDemo.querySelector('a')).toHaveAttribute('href', 'https://example.com');
+    expect(linkPressDemo.querySelector('a')).toHaveAttribute(
+      'href',
+      'https://example.com'
+    );
   });
 
   it('blockquote demo renders blockquote element', () => {

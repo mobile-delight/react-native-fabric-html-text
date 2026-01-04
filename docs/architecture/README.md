@@ -191,7 +191,7 @@ Includes optional height animation via `animationDuration` prop.
 
 The web implementation provides:
 
-- **SSR Compatibility**: DOMPurify works in Node.js for Next.js SSR
+- **SSR Compatibility**: Dual-sanitizer approach - DOMPurify (browser) and sanitize-html (Node.js/SSR)
 - **Style Conversion**: React Native TextStyle to CSS Properties
 - **Native Truncation**: Uses CSS line-clamp for numberOfLines
 - **Same API**: Identical props as native component

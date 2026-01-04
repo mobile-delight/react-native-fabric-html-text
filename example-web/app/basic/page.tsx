@@ -10,8 +10,8 @@ export default function BasicPage() {
         Basic HTML Rendering
       </h1>
       <p className="text-gray-600 dark:text-gray-400 mb-8">
-        Demonstrations of basic HTML rendering capabilities including paragraphs,
-        formatting, headings, lists, links, and more.
+        Demonstrations of basic HTML rendering capabilities including
+        paragraphs, formatting, headings, lists, links, and more.
       </p>
 
       <DemoSection
@@ -93,8 +93,10 @@ export default function BasicPage() {
         description="Code or preformatted content"
         code={`<HTMLText html="<pre>const greeting = 'Hello World';\\nconsole.log(greeting);</pre>" />`}
       >
-        <HTMLText html="<pre>const greeting = 'Hello World';
-console.log(greeting);</pre>" />
+        <HTMLText
+          html="<pre>const greeting = 'Hello World';
+console.log(greeting);</pre>"
+        />
       </DemoSection>
     </div>
   );

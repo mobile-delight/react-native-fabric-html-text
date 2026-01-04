@@ -18,6 +18,10 @@ declare module 'react-native-fabric-html-text' {
     detectPhoneNumbers?: boolean;
     detectEmails?: boolean;
     numberOfLines?: number;
+    /** Custom styles for specific HTML tags (not supported on web) */
+    tagStyles?: Record<string, React.CSSProperties>;
+    /** Animation duration for truncation changes in ms (not supported on web) */
+    animationDuration?: number;
   }
 
   export const HTMLText: FC<HTMLTextProps>;

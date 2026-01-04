@@ -3,6 +3,8 @@ import StylingPage from '@/app/styling/page';
 
 // Mock HTMLText component to test page structure
 jest.mock('react-native-fabric-html-text', () => {
+  // Import DOMPurify inside the mock factory for Jest module isolation
+  const purify = jest.requireActual('dompurify');
   return function MockHTMLText({
     html,
     className,
@@ -17,7 +19,7 @@ jest.mock('react-native-fabric-html-text', () => {
         data-testid="html-text"
         className={className}
         data-numberoflines={numberOfLines}
-        dangerouslySetInnerHTML={{ __html: html }}
+        dangerouslySetInnerHTML={{ __html: purify.sanitize(html) }}
       />
     );
   };
@@ -29,9 +31,9 @@ describe('Styling Page - Integration', () => {
     expect(
       screen.getByText('Styling with className & Tailwind')
     ).toBeInTheDocument();
-    expect(
-      screen.getByText('Styling with className & Tailwind').tagName
-    ).toBe('H1');
+    expect(screen.getByText('Styling with className & Tailwind').tagName).toBe(
+      'H1'
+    );
   });
 
   it('renders page description about className prop', () => {
@@ -50,7 +52,9 @@ describe('Styling Page - Integration', () => {
     expect(screen.getByText('Gradient Background')).toBeInTheDocument();
     expect(screen.getByText('Responsive Typography')).toBeInTheDocument();
     expect(screen.getByText('Hover Effects')).toBeInTheDocument();
-    expect(screen.getByText('Combining with numberOfLines')).toBeInTheDocument();
+    expect(
+      screen.getByText('Combining with numberOfLines')
+    ).toBeInTheDocument();
     expect(screen.getByText('Complex HTML with Styling')).toBeInTheDocument();
   });
 

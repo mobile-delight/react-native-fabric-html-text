@@ -1,15 +1,15 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css";
-import Navigation from "@/components/Navigation";
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import './globals.css';
+import Navigation from '@/components/Navigation';
 
 const inter = Inter({
-  subsets: ["latin"],
+  subsets: ['latin'],
 });
 
 export const metadata: Metadata = {
-  title: "FabricHTMLText Web Demo",
-  description: "Example app demonstrating FabricHTMLText web platform support",
+  title: 'FabricHTMLText Web Demo',
+  description: 'Example app demonstrating FabricHTMLText web platform support',
 };
 
 export default function RootLayout({
@@ -21,9 +21,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${inter.className} antialiased`}>
         <Navigation />
-        <main className="max-w-4xl mx-auto px-4 py-8">
-          {children}
-        </main>
+        <main className="max-w-4xl mx-auto px-4 py-8">{children}</main>
       </body>
     </html>
   );

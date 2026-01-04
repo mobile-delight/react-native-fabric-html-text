@@ -37,8 +37,7 @@ describe('Sanitize - SSR Compatibility', () => {
 
   it('preserves safe HTML tags', async () => {
     const { sanitize } = await import('react-native-fabric-html-text');
-    const safe =
-      '<p>Hello <strong>bold</strong> and <em>italic</em></p>';
+    const safe = '<p>Hello <strong>bold</strong> and <em>italic</em></p>';
     const result = sanitize(safe);
 
     expect(result).toContain('<p>');

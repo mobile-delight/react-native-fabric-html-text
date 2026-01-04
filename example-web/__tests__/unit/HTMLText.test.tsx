@@ -76,9 +76,7 @@ describe('HTMLText - Basic Rendering', () => {
   });
 
   it('renders preformatted text', () => {
-    const { container } = render(
-      <HTMLText html="<pre>const x = 1;</pre>" />
-    );
+    const { container } = render(<HTMLText html="<pre>const x = 1;</pre>" />);
     expect(container.querySelector('pre')).toHaveTextContent('const x = 1;');
   });
 });
@@ -144,7 +142,10 @@ describe('HTMLText - Accessibility', () => {
 
 describe('HTMLText - Truncation (numberOfLines)', () => {
   // Helper to access webkit style properties (jsdom uses camelCase)
-  const getWebkitStyle = (el: HTMLElement, prop: 'WebkitLineClamp' | 'WebkitBoxOrient') => {
+  const getWebkitStyle = (
+    el: HTMLElement,
+    prop: 'WebkitLineClamp' | 'WebkitBoxOrient'
+  ) => {
     return (el.style as unknown as Record<string, string>)[prop] || '';
   };
 
@@ -180,10 +181,7 @@ describe('HTMLText - Truncation (numberOfLines)', () => {
 
   it('does not apply truncation styles when numberOfLines is 0', () => {
     const { container } = render(
-      <HTMLText
-        html="<p>Short text that fits.</p>"
-        numberOfLines={0}
-      />
+      <HTMLText html="<p>Short text that fits.</p>" numberOfLines={0} />
     );
     const wrapper = container.firstChild as HTMLElement;
     // Should not have line-clamp styles

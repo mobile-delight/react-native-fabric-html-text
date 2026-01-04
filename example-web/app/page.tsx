@@ -26,8 +26,9 @@ export default function HomePage() {
           FabricHTMLText Web Demo
         </h1>
         <p className="text-lg text-gray-600 dark:text-gray-400 mb-6">
-          A cross-platform HTML text renderer for React Native with full web support.
-          Render sanitized HTML content with consistent styling across iOS, Android, and Web.
+          A cross-platform HTML text renderer for React Native with full web
+          support. Render sanitized HTML content with consistent styling across
+          iOS, Android, and Web.
         </p>
       </section>
 
@@ -67,7 +68,11 @@ export default function HomePage() {
           Next.js Configuration
         </h2>
         <p className="text-gray-600 dark:text-gray-400 mb-4">
-          Add the following to your <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">next.config.js</code>:
+          Add the following to your{' '}
+          <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">
+            next.config.js
+          </code>
+          :
         </p>
         <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-sm">
           <code>{`const nextConfig = {

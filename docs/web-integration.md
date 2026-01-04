@@ -298,7 +298,7 @@ if (typeof window !== 'undefined') {
 
 ### Hydration
 
-Both sanitizers are configured with identical allowed tags and attributes, ensuring consistent output between server and client. This prevents hydration mismatches.
+Both sanitizers are configured with the same allowed tags and attribute allowlists. The sanitize-html configuration includes additional tag-specific attributes (e.g., `target`, `rel` for links; `src`, `alt`, `width`, `height` for images) that are stripped on the server but allowed through DOMPurify on the client. In practice, the library's test content doesn't use these extra attributes, preventing hydration mismatches.
 
 ### Client Bundle Size
 

@@ -134,10 +134,15 @@ export default function StylingPage() {
       </h2>
       <p className="text-gray-600 dark:text-gray-400 mb-6">
         Container queries allow text to respond to container size instead of
-        viewport. Use the <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">@container</code> class
-        on a parent and <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">@sm:</code>,{' '}
+        viewport. Use the{' '}
+        <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">
+          @container
+        </code>{' '}
+        class on a parent and{' '}
+        <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">@sm:</code>,{' '}
         <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">@md:</code>,{' '}
-        <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">@lg:</code> variants on children.
+        <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">@lg:</code>{' '}
+        variants on children.
       </p>
 
       <DemoSection
