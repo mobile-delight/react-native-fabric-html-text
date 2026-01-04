@@ -16,7 +16,6 @@
 
 // Debug flag for verbose measurement logging.
 // Set to 1 to enable detailed logging for HTML parsing and layout measurement.
-// Must be manually enabled - defaults to 0 for normal operation.
 #define DEBUG_CPP_MEASUREMENT 0
 
 // Android NDK logging - outputs to logcat with tag "FabricHTMLText_CPP"
@@ -30,6 +29,17 @@ namespace facebook::react {
 
 // Component name definition
 extern const char FabricHTMLTextComponentName[] = "FabricHTMLText";
+
+// Static initialization to verify custom ShadowNodes are loaded
+namespace {
+  struct CustomShadowNodesInitializer {
+    CustomShadowNodesInitializer() {
+      __android_log_print(ANDROID_LOG_INFO, "FabricHTMLText_CPP",
+        "Custom ShadowNodes.cpp loaded");
+    }
+  };
+  static CustomShadowNodesInitializer _customInitializer;
+}
 
 // FabricHTMLTextShadowNode implementation
 
