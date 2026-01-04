@@ -133,12 +133,12 @@ if command -v xcbeautify &> /dev/null; then
         exit 1
     fi
 else
+    echo "Note: Install xcbeautify for prettier output (brew install xcbeautify)"
     xcodebuild build \
         -workspace FabricHtmlTextExample.xcworkspace \
         -scheme "Pods-FabricHtmlTextExample" \
         -destination "platform=iOS Simulator,id=$UDID" \
-        -derivedDataPath "$DERIVED_DATA_PATH" \
-        -quiet
+        -derivedDataPath "$DERIVED_DATA_PATH"
     if [[ $? -ne 0 ]]; then
         echo "ERROR: Pod compilation failed in Stage 1."
         exit 1
@@ -164,7 +164,8 @@ else
         -workspace FabricHtmlTextExample.xcworkspace \
         -scheme "$SCHEME" \
         -destination "platform=iOS Simulator,id=$UDID" \
-        -derivedDataPath "$DERIVED_DATA_PATH"
+        -derivedDataPath "$DERIVED_DATA_PATH" \
+        -resultBundlePath "$DERIVED_DATA_PATH/TestResults.xcresult"
     if [[ $? -ne 0 ]]; then
         echo "ERROR: Tests failed in Stage 2."
         exit 1

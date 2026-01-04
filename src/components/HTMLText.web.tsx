@@ -81,6 +81,7 @@ export default function HTMLText({
       style={cssStyle}
       data-testid={testID}
       onClick={onLinkPress ? handleClick : undefined}
+      // nosemgrep: no-dangerous-innerhtml-without-sanitization - sanitizedHtml is sanitized via DOMPurify on line 74
       dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
     />
   );
