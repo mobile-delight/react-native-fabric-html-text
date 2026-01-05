@@ -22,6 +22,15 @@
 namespace facebook::react {
 
 /**
+ * Writing direction for RTL text support.
+ * Maps to TextDirectionHeuristics on Android.
+ */
+enum class WritingDirectionState {
+  LTR,   // Left-to-right (default)
+  RTL    // Right-to-left
+};
+
+/**
  * State class for FabricHTMLText.
  *
  * Contains the parsed HTML content as an AttributedString, which is
@@ -47,15 +56,36 @@ class FabricHTMLTextState final {
    */
   std::vector<std::string> linkUrls;
 
+  /**
+   * Maximum number of lines to display (0 = no limit)
+   */
+  int numberOfLines{0};
+
+  /**
+   * Animation duration for height changes in seconds (0 = instant)
+   */
+  Float animationDuration{0.2f};
+
+  /**
+   * Base writing direction for text content
+   */
+  WritingDirectionState writingDirection{WritingDirectionState::LTR};
+
   FabricHTMLTextState() = default;
 
   FabricHTMLTextState(
       AttributedString attributedString,
       ParagraphAttributes paragraphAttributes,
-      std::vector<std::string> linkUrls = {})
+      std::vector<std::string> linkUrls = {},
+      int numberOfLines = 0,
+      Float animationDuration = 0.2f,
+      WritingDirectionState writingDirection = WritingDirectionState::LTR)
       : attributedString(std::move(attributedString)),
         paragraphAttributes(std::move(paragraphAttributes)),
-        linkUrls(std::move(linkUrls)) {}
+        linkUrls(std::move(linkUrls)),
+        numberOfLines(numberOfLines),
+        animationDuration(animationDuration),
+        writingDirection(writingDirection) {}
 
   /**
    * Constructor for state updates from JS (not supported for FabricHTMLText).

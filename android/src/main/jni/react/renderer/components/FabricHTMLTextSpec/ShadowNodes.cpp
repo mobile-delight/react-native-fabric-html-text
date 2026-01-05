@@ -212,14 +212,34 @@ void FabricHTMLTextShadowNode::layout(LayoutContext layoutContext) {
     localLinkUrls = _linkUrls;
   }
 
-  // Set state with the parsed AttributedString and link URLs
+  // Get effective values for state
+  int effectiveNumberOfLines = (props.numberOfLines > 0) ? props.numberOfLines : 0;
+  Float animationDuration = (props.animationDuration > 0) ? props.animationDuration : 0.0f;
+
+  // Parse writingDirection from props (string: "ltr" or "rtl", defaults to LTR)
+  WritingDirectionState writingDirection = WritingDirectionState::LTR;
+  if (!props.writingDirection.empty()) {
+    if (props.writingDirection == "rtl") {
+      writingDirection = WritingDirectionState::RTL;
+    }
+    // "ltr" or any other value defaults to LTR
+  }
+
+  // Set state with the parsed AttributedString, link URLs, and layout props
   // This passes the C++ parsed fragments to Kotlin via MapBuffer serialization,
   // eliminating the need for duplicate HTML parsing in the view layer.
-  setStateData(FabricHTMLTextState{localAttributedString, paragraphAttributes, localLinkUrls});
+  setStateData(FabricHTMLTextState{
+      localAttributedString,
+      paragraphAttributes,
+      localLinkUrls,
+      effectiveNumberOfLines,
+      animationDuration,
+      writingDirection});
 
   if (DEBUG_CPP_MEASUREMENT) {
-    LOGD("layout() - State set with %zu fragments, %zu linkUrls",
-         localAttributedString.getFragments().size(), localLinkUrls.size());
+    LOGD("layout() - State set with %zu fragments, %zu linkUrls, numberOfLines=%d, writingDirection=%s",
+         localAttributedString.getFragments().size(), localLinkUrls.size(),
+         effectiveNumberOfLines, props.writingDirection.c_str());
   }
 }
 

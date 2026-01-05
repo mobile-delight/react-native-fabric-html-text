@@ -109,6 +109,41 @@ describe('sanitize (web with DOMPurify)', () => {
       expect(output).toContain('class="container"');
     });
 
+    it('preserves bdi element for bidirectional isolation', () => {
+      const input = '<p>User: <bdi>مرحبا</bdi></p>';
+      const output = sanitize(input);
+      expect(output).toContain('<bdi>');
+      expect(output).toContain('</bdi>');
+    });
+
+    it('preserves bdo element for bidirectional override', () => {
+      const input = '<bdo dir="rtl">Right to left</bdo>';
+      const output = sanitize(input);
+      expect(output).toContain('<bdo');
+      expect(output).toContain('</bdo>');
+    });
+
+    it('preserves valid dir attribute values', () => {
+      expect(sanitize('<div dir="ltr">LTR</div>')).toContain('dir="ltr"');
+      expect(sanitize('<div dir="rtl">RTL</div>')).toContain('dir="rtl"');
+      expect(sanitize('<div dir="auto">Auto</div>')).toContain('dir="auto"');
+    });
+
+    it('removes invalid dir attribute values', () => {
+      const input = '<div dir="invalid">Content</div>';
+      const output = sanitize(input);
+      // Invalid dir values are cleared (empty string)
+      expect(output).not.toContain('dir="invalid"');
+      expect(output).toContain('Content');
+    });
+
+    it('removes dir attribute with XSS attempt', () => {
+      const input = '<div dir="rtl;onclick=alert(1)">Content</div>';
+      const output = sanitize(input);
+      expect(output).not.toContain('onclick');
+      expect(output).not.toContain('alert');
+    });
+
     it('preserves nested safe tags', () => {
       const input = '<p><strong><em>Bold and italic</em></strong></p>';
       const output = sanitize(input);

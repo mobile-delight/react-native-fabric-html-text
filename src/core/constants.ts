@@ -40,6 +40,9 @@ export const ALLOWED_TAGS = [
   'span',
   'br',
   'a',
+  // Bidirectional text support
+  'bdi', // Bidirectional isolation
+  'bdo', // Bidirectional override
   // Block
   'blockquote',
   'pre',
@@ -52,12 +55,18 @@ export const ALLOWED_TAGS = [
 /**
  * HTML attributes allowed in rendered content.
  */
-export const ALLOWED_ATTRIBUTES = ['href', 'class'] as const;
+export const ALLOWED_ATTRIBUTES = ['href', 'class', 'dir'] as const;
 
 /**
  * Allowed URL protocols for href attributes.
  */
 export const ALLOWED_PROTOCOLS = ['http', 'https', 'mailto', 'tel'] as const;
+
+/**
+ * Allowed values for the dir attribute (text direction).
+ * Invalid values are stripped during sanitization.
+ */
+export const ALLOWED_DIR_VALUES = ['ltr', 'rtl', 'auto'] as const;
 
 // =============================================================================
 // Heading Scales

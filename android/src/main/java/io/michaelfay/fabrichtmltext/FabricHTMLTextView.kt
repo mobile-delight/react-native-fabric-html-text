@@ -84,6 +84,9 @@ class FabricHTMLTextView : AppCompatTextView {
   private var numberOfLines: Int = 0  // 0 = no limit
   private var animationDuration: Float = 0.2f
 
+  // RTL text direction
+  private var isRTL: Boolean = false
+
   // Height animation state
   private var previousHeight: Int = 0
   private var hasInitializedLayout: Boolean = false
@@ -335,6 +338,33 @@ class FabricHTMLTextView : AppCompatTextView {
     animationDuration = if (duration < 0) 0f else duration
   }
 
+  fun setWritingDirection(direction: String?) {
+    val newIsRTL = direction == "rtl"
+    applyRTLState(newIsRTL)
+  }
+
+  /**
+   * Sets RTL state directly from boolean (used by state updates from C++).
+   * This is separate from setWritingDirection which accepts string from props.
+   */
+  fun setWritingDirectionFromState(rtl: Boolean) {
+    applyRTLState(rtl)
+  }
+
+  /**
+   * Apply RTL state to the view and layout.
+   * Sets both the internal flag and the View's layoutDirection for proper alignment.
+   */
+  private fun applyRTLState(rtl: Boolean) {
+    if (isRTL != rtl) {
+      isRTL = rtl
+      // Set View's layout direction for proper alignment behavior
+      layoutDirection = if (rtl) LAYOUT_DIRECTION_RTL else LAYOUT_DIRECTION_LTR
+      customLayout = null  // Force layout recreation
+      invalidate()
+    }
+  }
+
   /**
    * Apply auto-detection to the current text if any detection props are enabled.
    * Uses Android's Linkify to detect URLs, emails, and phone numbers.
@@ -404,6 +434,11 @@ class FabricHTMLTextView : AppCompatTextView {
     hasStateSpannable = true
     customLayout = null  // Clear cached layout to force recreation with new spannable
 
+    // Note: RTL auto-detection happens in createCustomLayout() via effectiveRTL,
+    // which combines the explicit isRTL prop with text content detection.
+    // We don't set layoutDirection here to avoid state inconsistency - the
+    // StaticLayout's textDirectionHeuristic handles alignment correctly.
+
     // Apply link detection if any detection props are enabled
     // This must happen AFTER setting stateSpannable since detection operates on it
     synchronized(detectionLock) {
@@ -446,6 +481,27 @@ class FabricHTMLTextView : AppCompatTextView {
   }
 
   /**
+   * Detects if text starts with RTL script based on first strong directional character.
+   * This matches Android's BidiFormatter logic and Unicode Bidirectional Algorithm.
+   */
+  private fun detectTextDirectionRTL(text: CharSequence): Boolean {
+    for (i in 0 until text.length) {
+      val dir = Character.getDirectionality(text[i])
+      when (dir) {
+        Character.DIRECTIONALITY_RIGHT_TO_LEFT,
+        Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC,
+        Character.DIRECTIONALITY_RIGHT_TO_LEFT_EMBEDDING,
+        Character.DIRECTIONALITY_RIGHT_TO_LEFT_OVERRIDE -> return true
+        Character.DIRECTIONALITY_LEFT_TO_RIGHT,
+        Character.DIRECTIONALITY_LEFT_TO_RIGHT_EMBEDDING,
+        Character.DIRECTIONALITY_LEFT_TO_RIGHT_OVERRIDE -> return false
+        // Skip neutral/weak characters (spaces, punctuation, etc.)
+      }
+    }
+    return false // Default to LTR if no strong characters found
+  }
+
+  /**
    * Creates a StaticLayout using the EXACT same parameters as TextLayoutManager.createLayout().
    * This ensures the rendered layout matches the measured layout from C++.
    *
@@ -455,19 +511,40 @@ class FabricHTMLTextView : AppCompatTextView {
     // Sync customTextPaint with view's paint settings
     customTextPaint.set(paint)
 
+    // Determine effective RTL: explicit isRTL prop OR auto-detect from text content
+    val effectiveRTL = isRTL || detectTextDirectionRTL(text)
+
+    if (DEBUG_LOG) {
+      Log.d(TAG, "[Layout] isRTL=$isRTL, detectTextDirectionRTL=${detectTextDirectionRTL(text)}, effectiveRTL=$effectiveRTL, viewLayoutDirection=${if (layoutDirection == LAYOUT_DIRECTION_RTL) "RTL" else "LTR"}")
+    }
+
+    // Select text direction heuristic based on effective RTL setting
+    // When RTL is detected/forced, use RTL (not FIRSTSTRONG_RTL) to ensure
+    // paragraph direction is RTL for proper ALIGN_NORMAL alignment
+    val textDirectionHeuristic = if (effectiveRTL) {
+      TextDirectionHeuristics.RTL
+    } else {
+      TextDirectionHeuristics.FIRSTSTRONG_LTR
+    }
+
     // Check if text is "boring" (single line, no special features)
     // Matches TextLayoutManager.isBoring() behavior
     val boring = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
       BoringLayout.isBoring(text, customTextPaint)
     } else {
-      BoringLayout.isBoring(text, customTextPaint, TextDirectionHeuristics.FIRSTSTRONG_LTR, true, null)
+      BoringLayout.isBoring(text, customTextPaint, textDirectionHeuristic, true, null)
     }
 
     // TextLayoutManager alignment mapping
+    // IMPORTANT: ALIGN_NORMAL means "start of paragraph direction"
+    // - For LTR text: ALIGN_NORMAL = left, ALIGN_OPPOSITE = right
+    // - For RTL text: ALIGN_NORMAL = right, ALIGN_OPPOSITE = left
+    // Since we set textDirectionHeuristic for RTL text, ALIGN_NORMAL gives us right-alignment
     val alignment = when (baseTextAlign) {
       "center" -> Layout.Alignment.ALIGN_CENTER
-      "right" -> Layout.Alignment.ALIGN_OPPOSITE
-      else -> Layout.Alignment.ALIGN_NORMAL
+      "right" -> if (effectiveRTL) Layout.Alignment.ALIGN_NORMAL else Layout.Alignment.ALIGN_OPPOSITE
+      "left" -> if (effectiveRTL) Layout.Alignment.ALIGN_OPPOSITE else Layout.Alignment.ALIGN_NORMAL
+      else -> Layout.Alignment.ALIGN_NORMAL  // Natural alignment: start of paragraph direction
     }
 
     // If boring text fits in width and numberOfLines allows single line, use BoringLayout
@@ -480,9 +557,11 @@ class FabricHTMLTextView : AppCompatTextView {
       )
     }
 
-    // Calculate layout width (matches TextLayoutManager)
+    // Calculate layout width
+    // For RTL text, always use availableWidth so alignment can take effect
+    // For LTR text, use the smaller of desired and available (matches TextLayoutManager)
     val desiredWidth = ceil(Layout.getDesiredWidth(text, customTextPaint)).toInt()
-    val layoutWidth = min(desiredWidth, availableWidth)
+    val layoutWidth = if (effectiveRTL) availableWidth else min(desiredWidth, availableWidth)
 
     if (DEBUG_LOG) {
       Log.d(TAG, "[Layout] Using StaticLayout: desiredWidth=$desiredWidth, layoutWidth=$layoutWidth, availableWidth=$availableWidth, numberOfLines=$numberOfLines")
@@ -495,6 +574,7 @@ class FabricHTMLTextView : AppCompatTextView {
       .setIncludePad(includeFontPadding)
       .setBreakStrategy(Layout.BREAK_STRATEGY_HIGH_QUALITY)
       .setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NONE)
+      .setTextDirection(textDirectionHeuristic)  // Apply RTL direction if set
 
     // Apply numberOfLines with ellipsis truncation
     if (numberOfLines > 0) {
@@ -615,10 +695,18 @@ class FabricHTMLTextView : AppCompatTextView {
     val lineCount = textLayout.lineCount
     if (lineCount == 0) return
 
-    Log.d(TAG, "[DEBUG] Custom Layout - Total lines: $lineCount, view height: $height, layout height: ${textLayout.height}")
+    Log.d(TAG, "[DEBUG] Custom Layout - Total lines: $lineCount, view height: $height, layout height: ${textLayout.height}, layoutWidth: ${textLayout.width}")
 
     canvas.save()
     canvas.translate(paddingLeft.toFloat(), paddingTop.toFloat())
+
+    // Draw full layout bounds as dark orange outline
+    val layoutBoundsPaint = Paint().apply {
+      color = Color.rgb(200, 80, 0)  // Dark orange for better visibility
+      style = Paint.Style.STROKE
+      strokeWidth = 4f
+    }
+    canvas.drawRect(0f, 0f, textLayout.width.toFloat(), textLayout.height.toFloat(), layoutBoundsPaint)
 
     for (i in 0 until lineCount) {
       val lineTop = textLayout.getLineTop(i).toFloat()
@@ -627,7 +715,7 @@ class FabricHTMLTextView : AppCompatTextView {
       val lineLeft = textLayout.getLineLeft(i)
       val lineRight = textLayout.getLineRight(i)
 
-      Log.d(TAG, "[DEBUG] Line $i: top=$lineTop bottom=$lineBottom baseline=$lineBaseline height=${lineBottom - lineTop}")
+      Log.d(TAG, "[DEBUG] Line $i: top=$lineTop bottom=$lineBottom baseline=$lineBaseline left=$lineLeft right=$lineRight layoutWidth=${textLayout.width}")
 
       debugFillPaints?.get(i % 4)?.let { paint ->
         canvas.drawRect(lineLeft, lineTop, lineRight, lineBottom, paint)

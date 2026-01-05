@@ -1,9 +1,24 @@
 import DOMPurify from 'dompurify';
 
 import { ALLOWED_TAGS, ALLOWED_ATTR } from './allowedHtml';
-import { ALLOWED_PROTOCOLS } from './constants';
+import { ALLOWED_PROTOCOLS, ALLOWED_DIR_VALUES } from './constants';
 
 export { ALLOWED_TAGS, ALLOWED_ATTR };
+
+// Set up DOMPurify hook to validate dir attribute values
+// This runs once when the module loads (browser only)
+if (typeof window !== 'undefined') {
+  DOMPurify.addHook('uponSanitizeAttribute', (_node, data) => {
+    if (data.attrName === 'dir') {
+      const value = data.attrValue.toLowerCase();
+      if (!ALLOWED_DIR_VALUES.includes(value as 'ltr' | 'rtl' | 'auto')) {
+        // Remove invalid dir attribute by clearing its value
+        data.attrValue = '';
+        data.forceKeepAttr = false;
+      }
+    }
+  });
+}
 
 // Build regex for allowed URI protocols
 const protocolPattern = ALLOWED_PROTOCOLS.join('|');
@@ -20,6 +35,20 @@ const DOMPURIFY_OPTIONS = {
   ALLOW_UNKNOWN_PROTOCOLS: false,
   ALLOWED_URI_REGEXP,
 };
+
+// Transformer to validate dir attribute values (for sanitize-html)
+function validateDirAttribute(
+  tagName: string,
+  attribs: Record<string, string>
+): { tagName: string; attribs: Record<string, string> } {
+  if (attribs.dir) {
+    const value = attribs.dir.toLowerCase();
+    if (!ALLOWED_DIR_VALUES.includes(value as 'ltr' | 'rtl' | 'auto')) {
+      delete attribs.dir;
+    }
+  }
+  return { tagName, attribs };
+}
 
 // Pre-compute sanitize-html options (used server-side only)
 const SANITIZE_HTML_OPTIONS = {
@@ -41,6 +70,10 @@ const SANITIZE_HTML_OPTIONS = {
   },
   allowProtocolRelative: false,
   disallowedTagsMode: 'discard' as const,
+  // Validate dir attribute values on all tags
+  transformTags: {
+    '*': validateDirAttribute,
+  },
 };
 
 // Lazy-load sanitize-html only on server (avoids bundling for client)

@@ -30,6 +30,9 @@ constexpr static MapBuffer::Key HTML_STATE_KEY_ATTRIBUTED_STRING = 0;
 constexpr static MapBuffer::Key HTML_STATE_KEY_PARAGRAPH_ATTRIBUTES = 1;
 constexpr static MapBuffer::Key HTML_STATE_KEY_HASH = 2;
 constexpr static MapBuffer::Key HTML_STATE_KEY_LINK_URLS = 3;
+constexpr static MapBuffer::Key HTML_STATE_KEY_NUMBER_OF_LINES = 4;
+constexpr static MapBuffer::Key HTML_STATE_KEY_ANIMATION_DURATION = 5;
+constexpr static MapBuffer::Key HTML_STATE_KEY_WRITING_DIRECTION = 6;
 
 folly::dynamic FabricHTMLTextState::getDynamic() const {
   // Not used for Kotlin serialization, but required by Fabric
@@ -82,6 +85,19 @@ MapBuffer FabricHTMLTextState::getMapBuffer() const {
   } else {
     STATE_LOGD("No linkUrls to serialize");
   }
+
+  // Serialize numberOfLines
+  builder.putInt(HTML_STATE_KEY_NUMBER_OF_LINES, numberOfLines);
+  STATE_LOGD("Serialized numberOfLines=%d", numberOfLines);
+
+  // Serialize animationDuration
+  builder.putDouble(HTML_STATE_KEY_ANIMATION_DURATION, static_cast<double>(animationDuration));
+  STATE_LOGD("Serialized animationDuration=%f", animationDuration);
+
+  // Serialize writingDirection (0 = LTR, 1 = RTL)
+  int writingDirectionInt = (writingDirection == WritingDirectionState::RTL) ? 1 : 0;
+  builder.putInt(HTML_STATE_KEY_WRITING_DIRECTION, writingDirectionInt);
+  STATE_LOGD("Serialized writingDirection=%d (RTL=%d)", writingDirectionInt, writingDirection == WritingDirectionState::RTL ? 1 : 0);
 
   return builder.build();
 }

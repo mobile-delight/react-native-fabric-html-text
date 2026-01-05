@@ -31,6 +31,17 @@ data class TextFragment(
 )
 
 /**
+ * Result of parsing state from C++ MapBuffer.
+ * Contains the Spannable and additional state fields.
+ */
+data class ParsedState(
+    val spannable: android.text.Spannable,
+    val numberOfLines: Int,
+    val animationDuration: Float,
+    val isRTL: Boolean
+)
+
+/**
  * Parses MapBuffer from C++ FabricHTMLTextViewState into TextFragment objects.
  *
  * This enables the Kotlin view to render using the same parsed data
@@ -71,6 +82,9 @@ object FabricHTMLFragmentParser {
     private const val HTML_STATE_KEY_PARAGRAPH_ATTRIBUTES = 1
     private const val HTML_STATE_KEY_HASH = 2
     private const val HTML_STATE_KEY_LINK_URLS = 3
+    private const val HTML_STATE_KEY_NUMBER_OF_LINES = 4
+    private const val HTML_STATE_KEY_ANIMATION_DURATION = 5
+    private const val HTML_STATE_KEY_WRITING_DIRECTION = 6
 
     // AttributedString keys (from conversions.h)
     private const val AS_KEY_HASH = 0
@@ -153,6 +167,46 @@ object FabricHTMLFragmentParser {
 
         val attributedStringBuffer = stateMapBuffer.getMapBuffer(HTML_STATE_KEY_ATTRIBUTED_STRING)
         return parseAttributedString(attributedStringBuffer, linkUrls)
+    }
+
+    /**
+     * Parses the full state including fragments and layout props.
+     * Returns a ParsedState containing the Spannable and additional state fields.
+     */
+    fun parseFullState(stateMapBuffer: ReadableMapBuffer): ParsedState? {
+        val fragments = parseState(stateMapBuffer)
+        if (fragments.isEmpty()) {
+            return null
+        }
+
+        val spannable = buildSpannableFromFragments(fragments)
+
+        // Extract numberOfLines (default 0 = no limit)
+        val numberOfLines = if (stateMapBuffer.contains(HTML_STATE_KEY_NUMBER_OF_LINES)) {
+            stateMapBuffer.getInt(HTML_STATE_KEY_NUMBER_OF_LINES)
+        } else {
+            0
+        }
+
+        // Extract animationDuration (default 0.2f)
+        val animationDuration = if (stateMapBuffer.contains(HTML_STATE_KEY_ANIMATION_DURATION)) {
+            stateMapBuffer.getDouble(HTML_STATE_KEY_ANIMATION_DURATION).toFloat()
+        } else {
+            0.2f
+        }
+
+        // Extract writingDirection (0 = LTR, 1 = RTL)
+        val isRTL = if (stateMapBuffer.contains(HTML_STATE_KEY_WRITING_DIRECTION)) {
+            stateMapBuffer.getInt(HTML_STATE_KEY_WRITING_DIRECTION) == 1
+        } else {
+            false
+        }
+
+        if (DEBUG) {
+            Log.d(TAG, "parseFullState: numberOfLines=$numberOfLines, animationDuration=$animationDuration, isRTL=$isRTL")
+        }
+
+        return ParsedState(spannable, numberOfLines, animationDuration, isRTL)
     }
 
     /**
