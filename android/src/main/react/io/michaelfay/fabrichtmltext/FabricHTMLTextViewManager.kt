@@ -263,6 +263,6 @@ class FabricHTMLTextViewManager : SimpleViewManager<FabricHTMLTextView>(),
   companion object {
     const val NAME = "FabricHTMLText"
     private const val TAG = "FabricHTMLTextViewManager"
-    private const val DEBUG_STATE = true
+    private const val DEBUG_STATE = false
   }
 }
