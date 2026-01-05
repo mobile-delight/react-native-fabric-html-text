@@ -215,24 +215,22 @@ class FabricHTMLTextViewManager : SimpleViewManager<FabricHTMLTextView>(),
         Log.d(TAG, "updateState: Received MapBuffer from C++")
       }
 
-      // Parse the MapBuffer to extract fragments
-      val fragments = FabricHTMLFragmentParser.parseState(mapBuffer)
+      // Parse the full state including fragments and layout props
+      val parsedState = FabricHTMLFragmentParser.parseFullState(mapBuffer)
 
-      if (fragments.isEmpty()) {
+      if (parsedState == null) {
         if (DEBUG_STATE) {
-          Log.d(TAG, "updateState: No fragments parsed")
+          Log.d(TAG, "updateState: No state parsed")
         }
         return null
       }
 
-      // Build Spannable from fragments using React Native's PixelUtil for conversion
-      val spannable = FabricHTMLFragmentParser.buildSpannableFromFragments(fragments)
-
       if (DEBUG_STATE) {
-        Log.d(TAG, "updateState: Built Spannable with ${spannable.length} chars")
+        Log.d(TAG, "updateState: Built Spannable with ${parsedState.spannable.length} chars, " +
+            "numberOfLines=${parsedState.numberOfLines}, isRTL=${parsedState.isRTL}")
       }
 
-      return spannable
+      return parsedState
     } catch (e: Exception) {
       Log.e(TAG, "updateState: Error parsing state", e)
       return null
@@ -241,12 +239,22 @@ class FabricHTMLTextViewManager : SimpleViewManager<FabricHTMLTextView>(),
 
   /**
    * Called with the return value from updateState.
-   * Sets the pre-built Spannable on the view.
+   * Sets the pre-built Spannable and state properties on the view.
    */
   override fun updateExtraData(view: FabricHTMLTextView, extraData: Any?) {
-    if (extraData is Spannable) {
+    if (extraData is ParsedState) {
       if (DEBUG_STATE) {
-        Log.d(TAG, "updateExtraData: Setting Spannable on view")
+        Log.d(TAG, "updateExtraData: Setting state on view - isRTL=${extraData.isRTL}, numberOfLines=${extraData.numberOfLines}")
+      }
+      // Apply all state properties to the view
+      view.setNumberOfLines(extraData.numberOfLines)
+      view.setAnimationDuration(extraData.animationDuration)
+      view.setWritingDirectionFromState(extraData.isRTL)
+      view.setSpannableFromState(extraData.spannable)
+    } else if (extraData is Spannable) {
+      // Fallback for backward compatibility
+      if (DEBUG_STATE) {
+        Log.d(TAG, "updateExtraData: Setting Spannable on view (legacy)")
       }
       view.setSpannableFromState(extraData)
     }

@@ -348,6 +348,18 @@ class FabricHTMLTextView : AppCompatTextView {
   }
 
   /**
+   * Sets RTL state directly from boolean (used by state updates from C++).
+   * This is separate from setWritingDirection which accepts string from props.
+   */
+  fun setWritingDirectionFromState(rtl: Boolean) {
+    if (isRTL != rtl) {
+      isRTL = rtl
+      customLayout = null  // Force layout recreation
+      invalidate()
+    }
+  }
+
+  /**
    * Apply auto-detection to the current text if any detection props are enabled.
    * Uses Android's Linkify to detect URLs, emails, and phone numbers.
    *
