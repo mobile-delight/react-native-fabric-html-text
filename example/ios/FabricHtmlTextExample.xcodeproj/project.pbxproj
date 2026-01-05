@@ -15,11 +15,13 @@
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
 		8B59E52DE1E321DDCD808836 /* FabricHTMLStylingTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = 3074300C8FD772A52CDBAF46 /* FabricHTMLStylingTests.mm */; };
+		A11Y1234CONTAINER5678AB /* AccessibilityContainerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11Y5678CONTAINERREF12 /* AccessibilityContainerTests.swift */; };
 		D77E7D659681725DE1AD0C4E /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B300A85A7211D98922444F6A /* Foundation.framework */; };
 		DC6B8FD60F6E3E496A8E41DE /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 		EAA6DBF0715104D94FC2B9D4 /* FabricHTMLParserTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = 03419A2944E4B377024A0DE7 /* FabricHTMLParserTests.mm */; };
 		EBD38CDA991AE7840D82E6E0 /* FabricHTMLSanitizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 451B3FDD48BC06AD51BC036C /* FabricHTMLSanitizerTests.swift */; };
 		F0FC50F0E270744ACE459FAC /* libPods-FabricHtmlTextExample-FabricHtmlTextTests.a in Frameworks */ = {isa = PBXBuildFile; fileRef = D6431BA46A1D145A1B03643E /* libPods-FabricHtmlTextExample-FabricHtmlTextTests.a */; };
+		LINK1234BOUNDS567890AB /* LinkBoundsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = LINK5678BOUNDSREF12345 /* LinkBoundsTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -48,12 +50,14 @@
 		5DCACB8F33CDC322A6C60F78 /* libPods-FabricHtmlTextExample.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-FabricHtmlTextExample.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = FabricHtmlTextExample/AppDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = FabricHtmlTextExample/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		A11Y5678CONTAINERREF12 /* AccessibilityContainerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AccessibilityContainerTests.swift; sourceTree = "<group>"; };
 		B07A598D645E785285A10507 /* FabricHTMLLinksTests.mm */ = {isa = PBXFileReference; includeInIndex = 1; path = FabricHTMLLinksTests.mm; sourceTree = "<group>"; };
 		B300A85A7211D98922444F6A /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		D6431BA46A1D145A1B03643E /* libPods-FabricHtmlTextExample-FabricHtmlTextTests.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-FabricHtmlTextExample-FabricHtmlTextTests.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		DD9401F792BD8E320958C10C /* FabricHTMLListsTests.mm */ = {isa = PBXFileReference; includeInIndex = 1; path = FabricHTMLListsTests.mm; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F257B78065678D2A545CFC90 /* FabricHtmlTextTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FabricHtmlTextTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		LINK5678BOUNDSREF12345 /* LinkBoundsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LinkBoundsTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -98,6 +102,8 @@
 				DD9401F792BD8E320958C10C /* FabricHTMLListsTests.mm */,
 				03419A2944E4B377024A0DE7 /* FabricHTMLParserTests.mm */,
 				3074300C8FD772A52CDBAF46 /* FabricHTMLStylingTests.mm */,
+				LINK5678BOUNDSREF12345 /* LinkBoundsTests.swift */,
+				A11Y5678CONTAINERREF12 /* AccessibilityContainerTests.swift */,
 			);
 			name = FabricHtmlTextTests;
 			path = FabricHtmlTextTests;
@@ -411,6 +417,8 @@
 				5D0234FE46EA49790A232656 /* FabricHTMLListsTests.mm in Sources */,
 				EAA6DBF0715104D94FC2B9D4 /* FabricHTMLParserTests.mm in Sources */,
 				8B59E52DE1E321DDCD808836 /* FabricHTMLStylingTests.mm in Sources */,
+				LINK1234BOUNDS567890AB /* LinkBoundsTests.swift in Sources */,
+				A11Y1234CONTAINER5678AB /* AccessibilityContainerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

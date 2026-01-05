@@ -18,9 +18,16 @@ import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.MotionEvent
+import android.view.View
 import androidx.appcompat.widget.AppCompatTextView
 import android.animation.ValueAnimator
 import android.view.animation.AccelerateDecelerateInterpolator
+import android.graphics.RectF
+import android.graphics.Rect
+import android.text.style.ClickableSpan
+import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityNodeProvider
+import android.view.accessibility.AccessibilityEvent
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.min
@@ -775,6 +782,410 @@ class FabricHTMLTextView : AppCompatTextView {
       debugBaselinePaint?.let { paint ->
         canvas.drawLine(lineLeft, lineBaseline, lineRight, lineBaseline, paint)
       }
+    }
+  }
+
+  // MARK: - Accessibility Link Support
+
+  /**
+   * Returns all ClickableSpan ranges in the current text, sorted by start position.
+   * This includes both HrefClickableSpan (explicit links) and URLSpan (auto-detected).
+   */
+  private fun getAllLinkRanges(): List<IntRange> {
+    val spannable = stateSpannable ?: (text as? Spannable) ?: return emptyList()
+    val spans = spannable.getSpans(0, spannable.length, ClickableSpan::class.java)
+
+    return spans.map { span ->
+      val start = spannable.getSpanStart(span)
+      val end = spannable.getSpanEnd(span)
+      start until end
+    }.sortedBy { it.first }
+  }
+
+  /**
+   * Returns the line index containing the given character offset, or -1 if invalid.
+   */
+  private fun getLineForOffset(offset: Int): Int {
+    val textLayout = customLayout ?: layout ?: return -1
+    if (offset < 0) return -1
+    return textLayout.getLineForOffset(offset)
+  }
+
+  /**
+   * Gets or creates the text layout for accessibility and bounds calculations.
+   * This ensures the layout is available even before onDraw() is called.
+   */
+  private fun getOrCreateLayout(): Layout? {
+    // Return existing custom layout if available
+    if (customLayout != null) return customLayout
+
+    // For state-based rendering, create the layout on demand
+    if (hasStateSpannable && stateSpannable != null && width > 0) {
+      customLayout = createCustomLayout(stateSpannable!!, width - paddingLeft - paddingRight)
+      return customLayout
+    }
+
+    // Fall back to TextView's internal layout
+    return layout
+  }
+
+  /**
+   * Returns the number of visible (non-truncated) links in the view.
+   * When numberOfLines is set, only counts links that are fully visible
+   * (not truncated by ellipsis).
+   */
+  fun getVisibleLinkCount(): Int {
+    val textLayout = getOrCreateLayout() ?: return 0
+    val linkRanges = getAllLinkRanges()
+
+    if (linkRanges.isEmpty()) return 0
+
+    // If no line limit, all links are visible
+    if (numberOfLines <= 0) return linkRanges.size
+
+    // Get the visible line count (capped by numberOfLines)
+    val visibleLines = min(textLayout.lineCount, numberOfLines)
+    if (visibleLines == 0) return 0
+
+    // Find the actual visible content end, accounting for ellipsis
+    val lastVisibleLine = visibleLines - 1
+    val visibleContentEnd = getVisibleContentEnd(textLayout, lastVisibleLine)
+
+    // Count links that END before the visible content end
+    // (links that are fully visible, not partially truncated)
+    return linkRanges.count { range ->
+      range.last < visibleContentEnd
+    }
+  }
+
+  /**
+   * Gets the character offset where visible content ends on the given line,
+   * accounting for ellipsis truncation.
+   */
+  private fun getVisibleContentEnd(textLayout: Layout, line: Int): Int {
+    val lineStart = textLayout.getLineStart(line)
+    val lineEnd = textLayout.getLineEnd(line)
+
+    // Check if this line has ellipsis truncation
+    val ellipsisCount = textLayout.getEllipsisCount(line)
+    if (ellipsisCount > 0) {
+      // Content is truncated - ellipsis starts at this offset within the line
+      val ellipsisStart = textLayout.getEllipsisStart(line)
+      return lineStart + ellipsisStart
+    }
+
+    return lineEnd
+  }
+
+  /**
+   * Returns the bounding rectangle for the link at the given index.
+   * The bounds are in the view's coordinate system.
+   *
+   * @param index The zero-based index of the link (0 = first link)
+   * @return The bounding rectangle, or null if index is invalid or no links exist
+   *
+   * For multi-line links, returns the union of all line segments containing the link.
+   */
+  fun getLinkBounds(index: Int): RectF? {
+    // Ensure layout is created if using state-based rendering
+    val textLayout = getOrCreateLayout() ?: return null
+    val linkRanges = getAllLinkRanges()
+
+    if (index < 0 || index >= linkRanges.size) return null
+
+    val range = linkRanges[index]
+    val linkStart = range.first
+    val linkEnd = range.last + 1 // IntRange is exclusive end, but we need inclusive
+
+    // Get the lines containing this link
+    val startLine = textLayout.getLineForOffset(linkStart)
+    val endLine = textLayout.getLineForOffset(linkEnd - 1)
+
+    if (startLine < 0) return null
+
+    // Calculate bounds for each line segment and union them
+    val bounds = RectF()
+    var isFirstRect = true
+
+    for (line in startLine..endLine) {
+      val lineStart = textLayout.getLineStart(line)
+      val lineEnd = textLayout.getLineEnd(line)
+
+      // Clip the link range to this line
+      val segmentStart = maxOf(linkStart, lineStart)
+      val segmentEnd = minOf(linkEnd, lineEnd)
+
+      if (segmentStart >= segmentEnd) continue
+
+      // Get horizontal bounds for this segment
+      val left = textLayout.getPrimaryHorizontal(segmentStart)
+      val right = textLayout.getPrimaryHorizontal(segmentEnd)
+
+      // Get vertical bounds from the line
+      val top = textLayout.getLineTop(line).toFloat()
+      val bottom = textLayout.getLineBottom(line).toFloat()
+
+      // Create rect for this segment (handle RTL where right < left)
+      val segmentRect = RectF(
+        minOf(left, right),
+        top,
+        maxOf(left, right),
+        bottom
+      )
+
+      // Union with accumulated bounds
+      if (isFirstRect) {
+        bounds.set(segmentRect)
+        isFirstRect = false
+      } else {
+        bounds.union(segmentRect)
+      }
+    }
+
+    // Return null if we didn't calculate any bounds
+    if (isFirstRect) return null
+
+    // Offset by padding to convert to view coordinates
+    bounds.offset(paddingLeft.toFloat(), paddingTop.toFloat())
+
+    return bounds
+  }
+
+  // MARK: - AccessibilityNodeProvider for Virtual Link Nodes
+
+  /**
+   * Provides virtual accessibility nodes for each link in the text.
+   * This allows TalkBack to navigate between links as if they were separate views.
+   */
+  override fun getAccessibilityNodeProvider(): AccessibilityNodeProvider? {
+    val linkRanges = getAllLinkRanges()
+    // If no links, return null to use default accessibility behavior
+    if (linkRanges.isEmpty()) return null
+
+    return LinkAccessibilityNodeProvider()
+  }
+
+  /**
+   * AccessibilityNodeProvider that creates virtual nodes for each link.
+   * Virtual node IDs are 1-based (0 is reserved for the host view).
+   */
+  private inner class LinkAccessibilityNodeProvider : AccessibilityNodeProvider() {
+
+    // HOST_VIEW_ID constant for the host view (moved here since inner classes can't have companion objects)
+    private val hostViewId = View.NO_ID
+
+    override fun createAccessibilityNodeInfo(virtualViewId: Int): AccessibilityNodeInfo? {
+      if (virtualViewId == hostViewId) {
+        // Create node info for the host view
+        return createHostNodeInfo()
+      }
+
+      // Virtual view IDs are 1-based indices into the link list
+      val linkIndex = virtualViewId - 1
+      return createLinkNodeInfo(linkIndex, virtualViewId)
+    }
+
+    private fun createHostNodeInfo(): AccessibilityNodeInfo {
+      val info = AccessibilityNodeInfo.obtain(this@FabricHTMLTextView)
+      info.setSource(this@FabricHTMLTextView)
+      info.className = FabricHTMLTextView::class.java.name
+      info.packageName = context.packageName
+
+      // Add the view's bounds
+      val rect = Rect()
+      this@FabricHTMLTextView.getGlobalVisibleRect(rect)
+      info.setBoundsInScreen(rect)
+
+      // Make the host focusable but not the main accessibility element
+      info.isVisibleToUser = true
+      info.isEnabled = true
+
+      // Add virtual child nodes for each link
+      val visibleLinkCount = getVisibleLinkCount()
+      for (i in 0 until visibleLinkCount) {
+        info.addChild(this@FabricHTMLTextView, i + 1) // 1-based IDs
+      }
+
+      // Set content description for the entire view
+      val spannable = stateSpannable ?: (text as? Spannable)
+      if (spannable != null) {
+        if (visibleLinkCount > 0) {
+          val linkWord = if (visibleLinkCount == 1) "link" else "links"
+          info.contentDescription = "$spannable. Contains $visibleLinkCount $linkWord."
+        } else {
+          info.contentDescription = spannable.toString()
+        }
+      }
+
+      return info
+    }
+
+    private fun createLinkNodeInfo(linkIndex: Int, virtualViewId: Int): AccessibilityNodeInfo? {
+      val linkRanges = getAllLinkRanges()
+      if (linkIndex < 0 || linkIndex >= linkRanges.size) return null
+
+      val range = linkRanges[linkIndex]
+      val spannable = stateSpannable ?: (text as? Spannable) ?: return null
+
+      // Get the link text
+      val linkText = spannable.subSequence(range.first, range.last + 1).toString()
+
+      // Get the URL and determine link type
+      val spans = spannable.getSpans(range.first, range.last + 1, ClickableSpan::class.java)
+      val url = when (val span = spans.firstOrNull()) {
+        is HrefClickableSpan -> span.href
+        is android.text.style.URLSpan -> span.url
+        else -> null
+      }
+
+      val linkType = when {
+        url?.startsWith("mailto:") == true -> "email"
+        url?.startsWith("tel:") == true -> "phone"
+        else -> "link"
+      }
+
+      val info = AccessibilityNodeInfo.obtain(this@FabricHTMLTextView, virtualViewId)
+      info.setSource(this@FabricHTMLTextView, virtualViewId)
+      info.className = "android.widget.Button" // Best match for clickable link behavior
+      info.packageName = context.packageName
+
+      // Set parent
+      info.setParent(this@FabricHTMLTextView)
+
+      // Set bounds in screen coordinates
+      val linkBounds = getLinkBounds(linkIndex)
+      if (linkBounds != null) {
+        val screenRect = Rect()
+        this@FabricHTMLTextView.getGlobalVisibleRect(screenRect)
+
+        val boundsInScreen = Rect(
+          (screenRect.left + linkBounds.left).toInt(),
+          (screenRect.top + linkBounds.top).toInt(),
+          (screenRect.left + linkBounds.right).toInt(),
+          (screenRect.top + linkBounds.bottom).toInt()
+        )
+        info.setBoundsInScreen(boundsInScreen)
+      }
+
+      // Set content description with position info (WCAG 2.1 Level AA compliance)
+      val visibleLinkCount = getVisibleLinkCount()
+      val positionInfo = "Link ${linkIndex + 1} of $visibleLinkCount"
+      info.contentDescription = "$linkText. $positionInfo."
+
+      // Set hint based on link type (API 26+)
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        when (linkType) {
+          "email" -> info.hintText = "Double tap to compose email"
+          "phone" -> info.hintText = "Double tap to call"
+          else -> info.hintText = "Double tap to open link"
+        }
+      }
+
+      // Set accessibility properties
+      info.isVisibleToUser = true
+      info.isEnabled = true
+      info.isClickable = true
+      info.isFocusable = true
+      info.isFocused = false
+
+      // Add click action
+      info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_CLICK)
+      info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_ACCESSIBILITY_FOCUS)
+      info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_CLEAR_ACCESSIBILITY_FOCUS)
+
+      return info
+    }
+
+    override fun performAction(virtualViewId: Int, action: Int, arguments: android.os.Bundle?): Boolean {
+      if (virtualViewId == hostViewId) {
+        // Delegate to host view's default action handling
+        return this@FabricHTMLTextView.performAccessibilityAction(action, arguments)
+      }
+
+      val linkIndex = virtualViewId - 1
+      val linkRanges = getAllLinkRanges()
+      if (linkIndex < 0 || linkIndex >= linkRanges.size) return false
+
+      when (action) {
+        AccessibilityNodeInfo.ACTION_CLICK -> {
+          // Find and click the link
+          val range = linkRanges[linkIndex]
+          val spannable = stateSpannable ?: (text as? Spannable) ?: return false
+          val spans = spannable.getSpans(range.first, range.last + 1, ClickableSpan::class.java)
+
+          if (spans.isNotEmpty()) {
+            val span = spans[0]
+            val url = when (span) {
+              is HrefClickableSpan -> span.href
+              is android.text.style.URLSpan -> span.url
+              else -> return false
+            }
+
+            // Validate URL scheme before invoking callback
+            val scheme = android.net.Uri.parse(url).scheme?.lowercase()
+            val allowedSchemes = setOf("http", "https", "mailto", "tel")
+            if (scheme == null || scheme !in allowedSchemes) {
+              return false
+            }
+
+            val type = when {
+              url.startsWith("mailto:") -> DetectedContentType.EMAIL
+              url.startsWith("tel:") -> DetectedContentType.PHONE
+              else -> DetectedContentType.LINK
+            }
+
+            linkClickListener?.onLinkClick(url, type)
+            return true
+          }
+          return false
+        }
+
+        AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS -> {
+          // Send focus event
+          sendAccessibilityEventForVirtualView(
+            virtualViewId,
+            AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED
+          )
+          return true
+        }
+
+        AccessibilityNodeInfo.ACTION_CLEAR_ACCESSIBILITY_FOCUS -> {
+          // Send focus cleared event
+          sendAccessibilityEventForVirtualView(
+            virtualViewId,
+            AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUS_CLEARED
+          )
+          return true
+        }
+      }
+
+      return false
+    }
+
+    private fun sendAccessibilityEventForVirtualView(virtualViewId: Int, eventType: Int) {
+      val event = AccessibilityEvent.obtain(eventType)
+      event.packageName = context.packageName
+      event.className = FabricHTMLTextView::class.java.name
+      event.setSource(this@FabricHTMLTextView, virtualViewId)
+      event.isEnabled = true
+
+      // Add content description from the node info
+      val linkIndex = virtualViewId - 1
+      val linkRanges = getAllLinkRanges()
+      if (linkIndex >= 0 && linkIndex < linkRanges.size) {
+        val range = linkRanges[linkIndex]
+        val spannable = stateSpannable ?: (text as? Spannable)
+        if (spannable != null) {
+          val linkText = spannable.subSequence(range.first, range.last + 1).toString()
+          val visibleLinkCount = getVisibleLinkCount()
+          event.contentDescription = "$linkText. Link ${linkIndex + 1} of $visibleLinkCount."
+        }
+      }
+
+      this@FabricHTMLTextView.parent?.requestSendAccessibilityEvent(
+        this@FabricHTMLTextView,
+        event
+      )
     }
   }
 }

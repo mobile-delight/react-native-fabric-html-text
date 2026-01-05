@@ -1,4 +1,5 @@
 #import "FabricHTMLCoreTextView.h"
+#import "FabricHTMLLinkAccessibilityElement.h"
 #import <CoreText/CoreText.h>
 
 /// Custom attribute key to store the detected content type
@@ -9,6 +10,7 @@ static NSString *const HTMLDetectedContentTypeKey = @"HTMLDetectedContentType";
   NSAttributedString *_processedAttributedText; // With detected links added
   CGFloat _previousContentHeight; // Track height for animation
   BOOL _hasInitializedHeight; // Flag for first layout
+  NSArray<FabricHTMLLinkAccessibilityElement *> *_accessibilityElements; // Cached accessibility elements
 #if DEBUG
   NSArray<NSDictionary *> *_debugLineInfo; // Cached debug info for each line
 #endif
@@ -270,6 +272,7 @@ static NSString *const HTMLDetectedContentTypeKey = @"HTMLDetectedContentType";
     CFRelease(_ctFrame);
     _ctFrame = NULL;
   }
+  _accessibilityElements = nil; // Invalidate accessibility elements when layout changes
 #if DEBUG
   _debugLineInfo = nil;
 #endif
@@ -832,6 +835,162 @@ static BOOL kDebugDrawLineBounds = NO;
 }
 #endif
 
+#pragma mark - Accessibility Link Support
+
+/**
+ * Returns all link ranges in the attributed text.
+ * A link is identified by the NSLinkAttributeName attribute.
+ */
+- (NSArray<NSValue *> *)allLinkRanges {
+  NSAttributedString *textToCheck = _processedAttributedText ?: _attributedText;
+  if (!textToCheck || textToCheck.length == 0) {
+    return @[];
+  }
+
+  NSMutableArray<NSValue *> *ranges = [NSMutableArray array];
+  [textToCheck enumerateAttribute:NSLinkAttributeName
+                          inRange:NSMakeRange(0, textToCheck.length)
+                          options:0
+                       usingBlock:^(id value, NSRange range, BOOL *stop) {
+    if (value) {
+      [ranges addObject:[NSValue valueWithRange:range]];
+    }
+  }];
+
+  return ranges;
+}
+
+/**
+ * Returns the line number (0-based) for a character at the given index.
+ */
+- (NSInteger)lineForCharacterAtIndex:(NSUInteger)charIndex {
+  CTFrameRef frame = [self ctFrame];
+  if (!frame) {
+    return -1;
+  }
+
+  CFArrayRef lines = CTFrameGetLines(frame);
+  CFIndex lineCount = CFArrayGetCount(lines);
+
+  for (CFIndex i = 0; i < lineCount; i++) {
+    CTLineRef line = CFArrayGetValueAtIndex(lines, i);
+    CFRange lineRange = CTLineGetStringRange(line);
+    NSUInteger lineStart = (NSUInteger)lineRange.location;
+    NSUInteger lineEnd = lineStart + (NSUInteger)lineRange.length;
+
+    if (charIndex >= lineStart && charIndex < lineEnd) {
+      return (NSInteger)i;
+    }
+  }
+
+  return -1;
+}
+
+- (NSInteger)visibleLinkCount {
+  NSArray<NSValue *> *allLinks = [self allLinkRanges];
+  if (allLinks.count == 0) {
+    return 0;
+  }
+
+  // If no truncation, all links are visible
+  if (_numberOfLines <= 0) {
+    return (NSInteger)allLinks.count;
+  }
+
+  CTFrameRef frame = [self ctFrame];
+  if (!frame) {
+    return 0;
+  }
+
+  CFArrayRef lines = CTFrameGetLines(frame);
+  CFIndex lineCount = CFArrayGetCount(lines);
+  NSInteger visibleLines = MIN(lineCount, _numberOfLines);
+
+  // Count links that start on visible lines
+  NSInteger count = 0;
+  for (NSValue *rangeValue in allLinks) {
+    NSRange linkRange = rangeValue.rangeValue;
+    NSInteger linkLine = [self lineForCharacterAtIndex:linkRange.location];
+
+    if (linkLine >= 0 && linkLine < visibleLines) {
+      count++;
+    }
+  }
+
+  return count;
+}
+
+- (CGRect)boundsForLinkAtIndex:(NSUInteger)index {
+  NSArray<NSValue *> *allLinks = [self allLinkRanges];
+  if (index >= allLinks.count) {
+    return CGRectZero;
+  }
+
+  CTFrameRef frame = [self ctFrame];
+  if (!frame) {
+    return CGRectZero;
+  }
+
+  NSRange linkRange = allLinks[index].rangeValue;
+  CFArrayRef lines = CTFrameGetLines(frame);
+  CFIndex lineCount = CFArrayGetCount(lines);
+
+  if (lineCount == 0) {
+    return CGRectZero;
+  }
+
+  // Get line origins
+  CGPoint *lineOrigins = malloc(sizeof(CGPoint) * lineCount);
+  CTFrameGetLineOrigins(frame, CFRangeMake(0, 0), lineOrigins);
+
+  CGRect bounds = CGRectNull;
+
+  for (CFIndex i = 0; i < lineCount; i++) {
+    CTLineRef line = CFArrayGetValueAtIndex(lines, i);
+    CFRange lineRange = CTLineGetStringRange(line);
+
+    // Check if this line contains part of the link
+    NSRange lineNSRange = NSMakeRange((NSUInteger)lineRange.location, (NSUInteger)lineRange.length);
+    NSRange intersection = NSIntersectionRange(linkRange, lineNSRange);
+
+    if (intersection.length == 0) {
+      continue;
+    }
+
+    // Get typographic bounds for this line
+    CGFloat ascent, descent, leading;
+    CTLineGetTypographicBounds(line, &ascent, &descent, &leading);
+
+    // Get x positions for the link portion on this line
+    CGFloat startOffset = CTLineGetOffsetForStringIndex(line, (CFIndex)intersection.location, NULL);
+    CGFloat endOffset = CTLineGetOffsetForStringIndex(line, (CFIndex)(intersection.location + intersection.length), NULL);
+
+    // Calculate line bounds in CoreText coordinates (origin at bottom-left)
+    CGPoint lineOrigin = lineOrigins[i];
+
+    // Convert to UIKit coordinates (origin at top-left)
+    CGFloat lineTop = self.bounds.size.height - lineOrigin.y - ascent;
+    CGFloat lineHeight = ascent + descent;
+
+    CGRect lineBounds = CGRectMake(
+      lineOrigin.x + startOffset,
+      lineTop,
+      endOffset - startOffset,
+      lineHeight
+    );
+
+    if (CGRectIsNull(bounds)) {
+      bounds = lineBounds;
+    } else {
+      bounds = CGRectUnion(bounds, lineBounds);
+    }
+  }
+
+  free(lineOrigins);
+
+  return CGRectIsNull(bounds) ? CGRectZero : bounds;
+}
+
 - (NSURL *)linkAtPoint:(CGPoint)point detectedType:(HTMLDetectedContentType *)outType {
   CTFrameRef frame = [self ctFrame];
   if (!frame) {
@@ -930,6 +1089,143 @@ static BOOL kDebugDrawLineBounds = NO;
   }
 
   return foundURL;
+}
+
+#pragma mark - UIAccessibilityContainer Protocol
+
+/**
+ * Build and cache accessibility elements for all visible links.
+ * This is called lazily when VoiceOver requests accessibility information.
+ */
+- (void)buildAccessibilityElementsIfNeeded {
+  if (_accessibilityElements) {
+    return; // Already built
+  }
+
+  NSInteger linkCount = self.visibleLinkCount;
+  if (linkCount == 0) {
+    _accessibilityElements = @[];
+    return;
+  }
+
+  NSMutableArray<FabricHTMLLinkAccessibilityElement *> *elements = [NSMutableArray arrayWithCapacity:linkCount];
+  NSAttributedString *textToCheck = _processedAttributedText ?: _attributedText;
+  NSArray<NSValue *> *allLinks = [self allLinkRanges];
+
+  for (NSUInteger i = 0; i < (NSUInteger)linkCount && i < allLinks.count; i++) {
+    NSRange linkRange = allLinks[i].rangeValue;
+
+    // Get the URL and content type for this link
+    NSURL *url = nil;
+    HTMLDetectedContentType contentType = HTMLDetectedContentTypeLink;
+
+    id linkValue = [textToCheck attribute:NSLinkAttributeName atIndex:linkRange.location effectiveRange:NULL];
+    if ([linkValue isKindOfClass:[NSURL class]]) {
+      url = linkValue;
+    } else if ([linkValue isKindOfClass:[NSString class]]) {
+      url = [NSURL URLWithString:linkValue];
+    }
+
+    // First check for explicit content type attribute (from auto-detection)
+    NSNumber *typeValue = [textToCheck attribute:HTMLDetectedContentTypeKey atIndex:linkRange.location effectiveRange:NULL];
+    if (typeValue) {
+      contentType = (HTMLDetectedContentType)[typeValue integerValue];
+    } else if (url) {
+      // Infer content type from URL scheme
+      NSString *scheme = url.scheme.lowercaseString;
+      if ([scheme isEqualToString:@"mailto"]) {
+        contentType = HTMLDetectedContentTypeEmail;
+      } else if ([scheme isEqualToString:@"tel"]) {
+        contentType = HTMLDetectedContentTypePhone;
+      }
+    }
+
+    // Get the link text
+    NSString *linkText = [textToCheck.string substringWithRange:linkRange];
+
+    // Get the bounds for this link in screen coordinates
+    CGRect linkBounds = [self boundsForLinkAtIndex:i];
+
+    // Convert to screen coordinates
+    CGRect screenBounds = linkBounds;
+    if (self.window) {
+      screenBounds = [self convertRect:linkBounds toView:nil];
+      screenBounds = [self.window convertRect:screenBounds toWindow:nil];
+    } else {
+      // View is not in window hierarchy (e.g., in tests)
+      // Use view-relative coordinates with view's frame origin offset
+      screenBounds.origin.x += self.frame.origin.x;
+      screenBounds.origin.y += self.frame.origin.y;
+    }
+
+    // Create the accessibility element
+    FabricHTMLLinkAccessibilityElement *element = [[FabricHTMLLinkAccessibilityElement alloc]
+      initWithAccessibilityContainer:self
+                           linkIndex:i
+                      totalLinkCount:(NSUInteger)linkCount
+                                 url:url ?: [NSURL URLWithString:@""]
+                         contentType:contentType
+                            linkText:linkText
+                               frame:screenBounds];
+
+    [elements addObject:element];
+  }
+
+  _accessibilityElements = [elements copy];
+}
+
+/**
+ * Returns YES if this view should NOT be treated as a single accessibility element.
+ * When links are present, VoiceOver should navigate through the individual links.
+ */
+- (BOOL)isAccessibilityElement {
+  NSInteger linkCount = self.visibleLinkCount;
+  // When there are links, this is a container (not an element itself)
+  // When there are no links, this is a regular accessibility element
+  return linkCount == 0;
+}
+
+/**
+ * Returns the number of accessibility elements (links) in this container.
+ */
+- (NSInteger)accessibilityElementCount {
+  [self buildAccessibilityElementsIfNeeded];
+  return (NSInteger)_accessibilityElements.count;
+}
+
+/**
+ * Returns the accessibility element at the given index.
+ */
+- (id)accessibilityElementAtIndex:(NSInteger)index {
+  [self buildAccessibilityElementsIfNeeded];
+
+  if (index < 0 || index >= (NSInteger)_accessibilityElements.count) {
+    return nil;
+  }
+
+  return _accessibilityElements[(NSUInteger)index];
+}
+
+/**
+ * Returns the index of the given accessibility element, or NSNotFound if not found.
+ */
+- (NSInteger)indexOfAccessibilityElement:(id)element {
+  [self buildAccessibilityElementsIfNeeded];
+
+  if (![element isKindOfClass:[FabricHTMLLinkAccessibilityElement class]]) {
+    return NSNotFound;
+  }
+
+  NSUInteger index = [_accessibilityElements indexOfObject:element];
+  return (index != NSNotFound) ? (NSInteger)index : NSNotFound;
+}
+
+/**
+ * Returns the accessibility container type for this view.
+ * We use semantic group since links are semantically related.
+ */
+- (UIAccessibilityContainerType)accessibilityContainerType {
+  return UIAccessibilityContainerTypeSemanticGroup;
 }
 
 @end
