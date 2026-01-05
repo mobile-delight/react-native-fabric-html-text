@@ -39,6 +39,7 @@ AttributedString FabricHTMLTextShadowNode::parseHtmlToAttributedString(
 
     if (html.empty()) {
         _linkUrls.clear();
+        _accessibilityLabel.clear();
         return AttributedString{};
     }
 
@@ -77,6 +78,7 @@ AttributedString FabricHTMLTextShadowNode::parseHtmlToAttributedString(
         props.tagStyles);
 
     _linkUrls = std::move(parseResult.linkUrls);
+    _accessibilityLabel = std::move(parseResult.accessibilityLabel);
     return parseResult.attributedString;
 }
 
@@ -153,7 +155,7 @@ void FabricHTMLTextShadowNode::layout(LayoutContext layoutContext) {
         // "ltr" or any other value defaults to LTR
     }
 
-    setStateData(FabricHTMLTextStateData{_attributedString, _linkUrls, effectiveNumberOfLines, animationDuration, writingDirection});
+    setStateData(FabricHTMLTextStateData{_attributedString, _linkUrls, effectiveNumberOfLines, animationDuration, writingDirection, _accessibilityLabel});
 
     ConcreteViewShadowNode::layout(layoutContext);
 }
