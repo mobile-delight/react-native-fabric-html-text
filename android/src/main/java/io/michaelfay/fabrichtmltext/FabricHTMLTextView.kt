@@ -340,11 +340,7 @@ class FabricHTMLTextView : AppCompatTextView {
 
   fun setWritingDirection(direction: String?) {
     val newIsRTL = direction == "rtl"
-    if (isRTL != newIsRTL) {
-      isRTL = newIsRTL
-      customLayout = null  // Force layout recreation
-      invalidate()
-    }
+    applyRTLState(newIsRTL)
   }
 
   /**
@@ -352,8 +348,18 @@ class FabricHTMLTextView : AppCompatTextView {
    * This is separate from setWritingDirection which accepts string from props.
    */
   fun setWritingDirectionFromState(rtl: Boolean) {
+    applyRTLState(rtl)
+  }
+
+  /**
+   * Apply RTL state to the view and layout.
+   * Sets both the internal flag and the View's layoutDirection for proper alignment.
+   */
+  private fun applyRTLState(rtl: Boolean) {
     if (isRTL != rtl) {
       isRTL = rtl
+      // Set View's layout direction for proper alignment behavior
+      layoutDirection = if (rtl) LAYOUT_DIRECTION_RTL else LAYOUT_DIRECTION_LTR
       customLayout = null  // Force layout recreation
       invalidate()
     }
@@ -495,13 +501,14 @@ class FabricHTMLTextView : AppCompatTextView {
     }
 
     // TextLayoutManager alignment mapping
-    // In RTL mode, "left" maps to "start" (NORMAL=right in RTL) and "right" maps to "end" (OPPOSITE=left in RTL)
-    // This follows CSS logical properties: left/right become start/end relative to writing direction
+    // When isRTL is true, we use ALIGN_NORMAL which aligns to "start" (right in RTL context)
+    // When isRTL is false, we use ALIGN_NORMAL which aligns to "start" (left in LTR context)
+    // The View's layoutDirection affects what "start" means for ALIGN_NORMAL
     val alignment = when (baseTextAlign) {
       "center" -> Layout.Alignment.ALIGN_CENTER
-      "right" -> if (isRTL) Layout.Alignment.ALIGN_NORMAL else Layout.Alignment.ALIGN_OPPOSITE
-      "left" -> if (isRTL) Layout.Alignment.ALIGN_OPPOSITE else Layout.Alignment.ALIGN_NORMAL
-      else -> Layout.Alignment.ALIGN_NORMAL
+      "right" -> Layout.Alignment.ALIGN_OPPOSITE.takeIf { !isRTL } ?: Layout.Alignment.ALIGN_NORMAL
+      "left" -> Layout.Alignment.ALIGN_NORMAL.takeIf { !isRTL } ?: Layout.Alignment.ALIGN_OPPOSITE
+      else -> Layout.Alignment.ALIGN_NORMAL  // Default to start-aligned (right in RTL, left in LTR)
     }
 
     // If boring text fits in width and numberOfLines allows single line, use BoringLayout
