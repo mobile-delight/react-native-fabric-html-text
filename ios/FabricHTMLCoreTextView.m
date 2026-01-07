@@ -1,9 +1,29 @@
 #import "FabricHTMLCoreTextView.h"
 #import "FabricHTMLLinkAccessibilityElement.h"
 #import <CoreText/CoreText.h>
+#import <os/log.h>
 
 /// Custom attribute key to store the detected content type
 static NSString *const HTMLDetectedContentTypeKey = @"HTMLDetectedContentType";
+
+/// Accessibility debug logging - set to 0 for production
+#define A11Y_DEBUG 1
+
+/// os_log instance for accessibility logging
+static os_log_t a11y_log_coretext(void) {
+    static os_log_t log;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        log = os_log_create("io.michaelfay.fabrichtmltext", "CoreTextView");
+    });
+    return log;
+}
+
+#if A11Y_DEBUG
+#define A11Y_LOG(fmt, ...) os_log_with_type(a11y_log_coretext(), OS_LOG_TYPE_DEBUG, "[A11Y_FHTMLCTV] " fmt, ##__VA_ARGS__)
+#else
+#define A11Y_LOG(fmt, ...) do { } while(0)
+#endif
 
 @implementation FabricHTMLCoreTextView {
   CTFrameRef _ctFrame;
@@ -199,12 +219,18 @@ static NSString *const HTMLDetectedContentTypeKey = @"HTMLDetectedContentType";
         continue;
       }
       NSString *phoneNumber = match.phoneNumber;
+      A11Y_LOG(@"PHONE DETECTION: matched phone='%@' at range=(%lu, %lu)",
+               phoneNumber, (unsigned long)range.location, (unsigned long)range.length);
       if (phoneNumber) {
-        // Create tel: URL
+        // Create tel: URL - remove all non-digit characters
         NSString *cleanedPhone = [[phoneNumber componentsSeparatedByCharactersInSet:
                                    [[NSCharacterSet decimalDigitCharacterSet] invertedSet]] componentsJoinedByString:@""];
-        url = [NSURL URLWithString:[NSString stringWithFormat:@"tel:%@", cleanedPhone]];
+        NSString *telString = [NSString stringWithFormat:@"tel:%@", cleanedPhone];
+        url = [NSURL URLWithString:telString];
         contentType = HTMLDetectedContentTypePhone;
+        A11Y_LOG(@"PHONE DETECTION: created tel URL='%@' from cleaned='%@'", url, cleanedPhone);
+      } else {
+        A11Y_LOG(@"PHONE DETECTION: WARNING - phone number is nil!");
       }
     } else if (match.resultType == NSTextCheckingTypeLink) {
       url = match.URL;
@@ -226,14 +252,17 @@ static NSString *const HTMLDetectedContentTypeKey = @"HTMLDetectedContentType";
         // Check if it's an email (mailto:) or a regular link
         if ([scheme isEqualToString:@"mailto"]) {
           if (!_detectEmails) {
+            A11Y_LOG(@"EMAIL DETECTION: found mailto: but detectEmails=NO, skipping");
             continue;
           }
           contentType = HTMLDetectedContentTypeEmail;
+          A11Y_LOG(@"EMAIL DETECTION: detected email='%@'", url.absoluteString);
         } else {
           if (!_detectLinks) {
             continue;
           }
           contentType = HTMLDetectedContentTypeLink;
+          A11Y_LOG(@"LINK DETECTION: detected link='%@'", url.absoluteString);
         }
       }
     }
@@ -245,9 +274,19 @@ static NSString *const HTMLDetectedContentTypeKey = @"HTMLDetectedContentType";
       // Add link styling (blue color, underline)
       [mutableText addAttribute:NSForegroundColorAttributeName value:[UIColor systemBlueColor] range:range];
       [mutableText addAttribute:NSUnderlineStyleAttributeName value:@(NSUnderlineStyleSingle) range:range];
+
+      NSString *matchedText = [plainText substringWithRange:range];
+      A11Y_LOG(@"DETECTION: Added %@ link '%@' -> '%@'",
+               contentType == HTMLDetectedContentTypePhone ? @"PHONE" :
+               contentType == HTMLDetectedContentTypeEmail ? @"EMAIL" : @"WEB",
+               matchedText, url.absoluteString);
+    } else {
+      A11Y_LOG(@"DETECTION WARNING: URL is nil for match at range=(%lu, %lu)",
+               (unsigned long)range.location, (unsigned long)range.length);
     }
   }
 
+  A11Y_LOG(@"DETECTION COMPLETE: Total matches processed=%lu", (unsigned long)matches.count);
   return mutableText;
 }
 
@@ -921,25 +960,35 @@ static BOOL kDebugDrawLineBounds = NO;
 }
 
 - (CGRect)boundsForLinkAtIndex:(NSUInteger)index {
+  A11Y_LOG(@"boundsForLinkAtIndex:%lu - view.bounds=%@", (unsigned long)index, NSStringFromCGRect(self.bounds));
   NSArray<NSValue *> *allLinks = [self allLinkRanges];
   if (index >= allLinks.count) {
+    A11Y_LOG(@"boundsForLinkAtIndex: index out of range");
     return CGRectZero;
   }
 
   CTFrameRef frame = [self ctFrame];
   if (!frame) {
+    A11Y_LOG(@"boundsForLinkAtIndex: no CTFrame");
     return CGRectZero;
   }
+
+  // Note: We use self.bounds for coordinate transformations to match the debug rendering
+  // approach, which correctly displays link bounds
+  A11Y_LOG(@"boundsForLinkAtIndex: viewBounds=%@", NSStringFromCGRect(self.bounds));
 
   NSRange linkRange = allLinks[index].rangeValue;
   CFArrayRef lines = CTFrameGetLines(frame);
   CFIndex lineCount = CFArrayGetCount(lines);
+  A11Y_LOG(@"boundsForLinkAtIndex: linkRange=(%lu, %lu), lineCount=%ld",
+           (unsigned long)linkRange.location, (unsigned long)linkRange.length, (long)lineCount);
 
   if (lineCount == 0) {
     return CGRectZero;
   }
 
-  // Get line origins
+  // Get line origins - these are in CoreText coordinates (origin at bottom-left of frame)
+  // relative to the frame path bounds, not the view bounds
   CGPoint *lineOrigins = malloc(sizeof(CGPoint) * lineCount);
   CTFrameGetLineOrigins(frame, CFRangeMake(0, 0), lineOrigins);
 
@@ -969,8 +1018,15 @@ static BOOL kDebugDrawLineBounds = NO;
     CGPoint lineOrigin = lineOrigins[i];
 
     // Convert to UIKit coordinates (origin at top-left)
+    // Use self.bounds.size.height directly, matching the debug rendering approach
+    // that correctly displays the link bounds
     CGFloat lineTop = self.bounds.size.height - lineOrigin.y - ascent;
     CGFloat lineHeight = ascent + descent;
+
+    A11Y_LOG(@"boundsForLinkAtIndex: line[%ld] origin=(%f,%f) ascent=%f descent=%f leading=%f -> lineTop=%f",
+             (long)i, lineOrigin.x, lineOrigin.y, ascent, descent, leading, lineTop);
+    A11Y_LOG(@"boundsForLinkAtIndex: line[%ld] startOffset=%f endOffset=%f",
+             (long)i, startOffset, endOffset);
 
     CGRect lineBounds = CGRectMake(
       lineOrigin.x + startOffset,
@@ -978,6 +1034,7 @@ static BOOL kDebugDrawLineBounds = NO;
       endOffset - startOffset,
       lineHeight
     );
+    A11Y_LOG(@"boundsForLinkAtIndex: line[%ld] lineBounds=%@", (long)i, NSStringFromCGRect(lineBounds));
 
     if (CGRectIsNull(bounds)) {
       bounds = lineBounds;
@@ -988,6 +1045,7 @@ static BOOL kDebugDrawLineBounds = NO;
 
   free(lineOrigins);
 
+  A11Y_LOG(@"boundsForLinkAtIndex:%lu RESULT=%@", (unsigned long)index, NSStringFromCGRect(bounds));
   return CGRectIsNull(bounds) ? CGRectZero : bounds;
 }
 
@@ -1094,69 +1152,102 @@ static BOOL kDebugDrawLineBounds = NO;
 #pragma mark - UIAccessibilityContainer Protocol
 
 /**
- * Build and cache accessibility elements for all visible links.
+ * Build and cache accessibility elements for text content and links.
  * This is called lazily when VoiceOver requests accessibility information.
+ *
+ * The first element is always the text content (so VoiceOver reads the full text),
+ * followed by individual link elements for navigation.
  */
 - (void)buildAccessibilityElementsIfNeeded {
   if (_accessibilityElements) {
+    A11Y_LOG(@"buildAccessibilityElementsIfNeeded: using cached elements (count=%lu)", (unsigned long)_accessibilityElements.count);
     return; // Already built
   }
 
   NSInteger linkCount = self.visibleLinkCount;
+  A11Y_LOG(@"buildAccessibilityElementsIfNeeded: linkCount=%ld", (long)linkCount);
   if (linkCount == 0) {
     _accessibilityElements = @[];
+    A11Y_LOG(@"buildAccessibilityElementsIfNeeded: no links, returning empty array");
     return;
   }
 
-  NSMutableArray<FabricHTMLLinkAccessibilityElement *> *elements = [NSMutableArray arrayWithCapacity:linkCount];
   NSAttributedString *textToCheck = _processedAttributedText ?: _attributedText;
+  A11Y_LOG(@"buildAccessibilityElementsIfNeeded: text='%@'", [textToCheck.string substringToIndex:MIN(50, textToCheck.string.length)]);
+
+  // First element: the full text content so VoiceOver announces it
+  NSMutableArray *elements = [NSMutableArray arrayWithCapacity:linkCount + 1];
+
+  UIAccessibilityElement *textElement = [[UIAccessibilityElement alloc] initWithAccessibilityContainer:self];
+  // Use resolved accessibility label (built by C++ parser with proper pauses for list items)
+  NSString *a11yLabel = _resolvedAccessibilityLabel;
+  if (!a11yLabel || a11yLabel.length == 0) {
+    a11yLabel = textToCheck.string;
+  }
+  textElement.accessibilityLabel = a11yLabel;
+  textElement.accessibilityTraits = UIAccessibilityTraitStaticText;
+  CGRect textScreenFrame = UIAccessibilityConvertFrameToScreenCoordinates(self.bounds, self);
+  textElement.accessibilityFrame = textScreenFrame;
+  A11Y_LOG(@"TEXT ELEMENT: label='%@...', frame=%@", [a11yLabel substringToIndex:MIN(30, a11yLabel.length)], NSStringFromCGRect(textScreenFrame));
+  // No hint needed - VoiceOver navigation is standard behavior
+
+  [elements addObject:textElement];
   NSArray<NSValue *> *allLinks = [self allLinkRanges];
+  A11Y_LOG(@"buildAccessibilityElementsIfNeeded: found %lu link ranges", (unsigned long)allLinks.count);
 
   for (NSUInteger i = 0; i < (NSUInteger)linkCount && i < allLinks.count; i++) {
     NSRange linkRange = allLinks[i].rangeValue;
+    A11Y_LOG(@"LINK[%lu] range: loc=%lu, len=%lu", (unsigned long)i, (unsigned long)linkRange.location, (unsigned long)linkRange.length);
 
     // Get the URL and content type for this link
     NSURL *url = nil;
     HTMLDetectedContentType contentType = HTMLDetectedContentTypeLink;
 
     id linkValue = [textToCheck attribute:NSLinkAttributeName atIndex:linkRange.location effectiveRange:NULL];
+    A11Y_LOG(@"LINK[%lu] NSLinkAttributeName value: %@ (class: %@)",
+             (unsigned long)i, linkValue, NSStringFromClass([linkValue class]));
+
     if ([linkValue isKindOfClass:[NSURL class]]) {
       url = linkValue;
     } else if ([linkValue isKindOfClass:[NSString class]]) {
       url = [NSURL URLWithString:linkValue];
+      A11Y_LOG(@"LINK[%lu] Converted string '%@' to URL: %@", (unsigned long)i, linkValue, url);
     }
 
     // First check for explicit content type attribute (from auto-detection)
     NSNumber *typeValue = [textToCheck attribute:HTMLDetectedContentTypeKey atIndex:linkRange.location effectiveRange:NULL];
     if (typeValue) {
       contentType = (HTMLDetectedContentType)[typeValue integerValue];
+      A11Y_LOG(@"LINK[%lu] Found HTMLDetectedContentTypeKey: %ld", (unsigned long)i, (long)contentType);
     } else if (url) {
       // Infer content type from URL scheme
       NSString *scheme = url.scheme.lowercaseString;
+      A11Y_LOG(@"LINK[%lu] URL scheme: '%@'", (unsigned long)i, scheme);
+
       if ([scheme isEqualToString:@"mailto"]) {
         contentType = HTMLDetectedContentTypeEmail;
+        A11Y_LOG(@"LINK[%lu] Detected as EMAIL from mailto: scheme", (unsigned long)i);
       } else if ([scheme isEqualToString:@"tel"]) {
         contentType = HTMLDetectedContentTypePhone;
+        A11Y_LOG(@"LINK[%lu] Detected as PHONE from tel: scheme", (unsigned long)i);
+      } else {
+        A11Y_LOG(@"LINK[%lu] Using default contentType=LINK for scheme '%@'", (unsigned long)i, scheme);
       }
+    } else {
+      A11Y_LOG(@"LINK[%lu] WARNING: No URL found for link!", (unsigned long)i);
     }
 
     // Get the link text
     NSString *linkText = [textToCheck.string substringWithRange:linkRange];
+    A11Y_LOG(@"LINK[%lu] text='%@', url='%@', type=%ld", (unsigned long)i, linkText, url.absoluteString, (long)contentType);
 
-    // Get the bounds for this link in screen coordinates
+    // Get the bounds for this link in view coordinates
     CGRect linkBounds = [self boundsForLinkAtIndex:i];
 
-    // Convert to screen coordinates
-    CGRect screenBounds = linkBounds;
-    if (self.window) {
-      screenBounds = [self convertRect:linkBounds toView:nil];
-      screenBounds = [self.window convertRect:screenBounds toWindow:nil];
-    } else {
-      // View is not in window hierarchy (e.g., in tests)
-      // Use view-relative coordinates with view's frame origin offset
-      screenBounds.origin.x += self.frame.origin.x;
-      screenBounds.origin.y += self.frame.origin.y;
-    }
+    // Convert to screen coordinates using the proper accessibility API
+    // This handles transforms, scroll offsets, and safe area insets correctly
+    CGRect screenBounds = UIAccessibilityConvertFrameToScreenCoordinates(linkBounds, self);
+    A11Y_LOG(@"LINK[%lu] bounds: local=%@, screen=%@", (unsigned long)i, NSStringFromCGRect(linkBounds), NSStringFromCGRect(screenBounds));
 
     // Create the accessibility element
     FabricHTMLLinkAccessibilityElement *element = [[FabricHTMLLinkAccessibilityElement alloc]
@@ -1169,9 +1260,11 @@ static BOOL kDebugDrawLineBounds = NO;
                                frame:screenBounds];
 
     [elements addObject:element];
+    A11Y_LOG(@"LINK[%lu] created element with label='%@'", (unsigned long)i, element.accessibilityLabel);
   }
 
   _accessibilityElements = [elements copy];
+  A11Y_LOG(@"buildAccessibilityElementsIfNeeded: COMPLETE - created %lu elements (1 text + %ld links)", (unsigned long)_accessibilityElements.count, (long)linkCount);
 }
 
 /**
@@ -1180,9 +1273,34 @@ static BOOL kDebugDrawLineBounds = NO;
  */
 - (BOOL)isAccessibilityElement {
   NSInteger linkCount = self.visibleLinkCount;
+  BOOL isElement = (linkCount == 0);
+  A11Y_LOG(@"isAccessibilityElement: linkCount=%ld, returning %@", (long)linkCount, isElement ? @"YES" : @"NO");
   // When there are links, this is a container (not an element itself)
   // When there are no links, this is a regular accessibility element
-  return linkCount == 0;
+  return isElement;
+}
+
+/**
+ * Returns the text content for VoiceOver to announce when this view is a single element.
+ * Uses resolvedAccessibilityLabel if set (from C++ parser), otherwise falls back to plain text.
+ */
+- (NSString *)accessibilityLabel {
+  NSString *label = _resolvedAccessibilityLabel;
+  if (!label || label.length == 0) {
+    // Fallback to plain text if no resolved label
+    NSAttributedString *textToCheck = _processedAttributedText ?: _attributedText;
+    label = textToCheck.string;
+  }
+  A11Y_LOG(@"accessibilityLabel: '%@...'", [label substringToIndex:MIN(30, label.length)]);
+  return label;
+}
+
+/**
+ * Returns static text traits for this view when it's a single element.
+ */
+- (UIAccessibilityTraits)accessibilityTraits {
+  A11Y_LOG(@"accessibilityTraits: returning UIAccessibilityTraitStaticText");
+  return UIAccessibilityTraitStaticText;
 }
 
 /**
@@ -1190,6 +1308,7 @@ static BOOL kDebugDrawLineBounds = NO;
  */
 - (NSInteger)accessibilityElementCount {
   [self buildAccessibilityElementsIfNeeded];
+  A11Y_LOG(@"accessibilityElementCount: returning %ld", (long)_accessibilityElements.count);
   return (NSInteger)_accessibilityElements.count;
 }
 
@@ -1200,10 +1319,19 @@ static BOOL kDebugDrawLineBounds = NO;
   [self buildAccessibilityElementsIfNeeded];
 
   if (index < 0 || index >= (NSInteger)_accessibilityElements.count) {
+    A11Y_LOG(@">>> accessibilityElementAtIndex:%ld - OUT OF BOUNDS (count=%ld)", (long)index, (long)_accessibilityElements.count);
     return nil;
   }
 
-  return _accessibilityElements[(NSUInteger)index];
+  id element = _accessibilityElements[(NSUInteger)index];
+  if ([element isKindOfClass:[FabricHTMLLinkAccessibilityElement class]]) {
+    FabricHTMLLinkAccessibilityElement *linkElement = (FabricHTMLLinkAccessibilityElement *)element;
+    A11Y_LOG(@">>> accessibilityElementAtIndex:%ld - LINK element label='%@'", (long)index, linkElement.accessibilityLabel);
+  } else {
+    UIAccessibilityElement *accessElement = (UIAccessibilityElement *)element;
+    A11Y_LOG(@">>> accessibilityElementAtIndex:%ld - TEXT element label='%@...'", (long)index, [accessElement.accessibilityLabel substringToIndex:MIN(30, accessElement.accessibilityLabel.length)]);
+  }
+  return element;
 }
 
 /**
@@ -1212,11 +1340,14 @@ static BOOL kDebugDrawLineBounds = NO;
 - (NSInteger)indexOfAccessibilityElement:(id)element {
   [self buildAccessibilityElementsIfNeeded];
 
-  if (![element isKindOfClass:[FabricHTMLLinkAccessibilityElement class]]) {
+  // Accept both UIAccessibilityElement (for text content) and FabricHTMLLinkAccessibilityElement (for links)
+  if (![element isKindOfClass:[UIAccessibilityElement class]]) {
+    A11Y_LOG(@"indexOfAccessibilityElement: not a UIAccessibilityElement, returning NSNotFound");
     return NSNotFound;
   }
 
   NSUInteger index = [_accessibilityElements indexOfObject:element];
+  A11Y_LOG(@"indexOfAccessibilityElement: found at index %lu", (unsigned long)index);
   return (index != NSNotFound) ? (NSInteger)index : NSNotFound;
 }
 

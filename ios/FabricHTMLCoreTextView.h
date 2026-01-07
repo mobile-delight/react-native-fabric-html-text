@@ -54,6 +54,11 @@ typedef NS_ENUM(NSInteger, HTMLDetectedContentType) {
 /// In RTL mode, "left" and "right" are swapped automatically (left → end, right → start).
 @property (nonatomic, copy, nullable) NSString *textAlign;
 
+/// Resolved accessibility label for screen readers.
+/// Built from C++ parser with proper pauses between list items.
+/// Can be overridden by passing accessibilityLabel prop from React.
+@property (nonatomic, copy, nullable) NSString *resolvedAccessibilityLabel;
+
 #pragma mark - Accessibility Link Support
 
 /**

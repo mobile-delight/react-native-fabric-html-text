@@ -26,8 +26,7 @@ import android.graphics.RectF
 import android.graphics.Rect
 import android.text.style.ClickableSpan
 import android.view.accessibility.AccessibilityNodeInfo
-import android.view.accessibility.AccessibilityNodeProvider
-import android.view.accessibility.AccessibilityEvent
+import androidx.core.view.ViewCompat
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.min
@@ -73,6 +72,9 @@ class FabricHTMLTextView : AppCompatTextView {
     private val DEBUG_DRAW_LINE_BOUNDS = BuildConfig.DEBUG && false
     // To enable debug logging, set DEBUG_LOG = true AND build in debug mode
     private val DEBUG_LOG = BuildConfig.DEBUG && false
+    // Accessibility debug logging - set to false for production
+    private const val A11Y_TAG = "A11Y_FHTMLTV"
+    private const val A11Y_DEBUG = true
   }
 
   // Text style props from React - synchronized with C++ measurement
@@ -93,6 +95,12 @@ class FabricHTMLTextView : AppCompatTextView {
 
   // RTL text direction
   private var isRTL: Boolean = false
+
+  // Resolved accessibility label (built by C++ parser with proper pauses for list items)
+  private var resolvedAccessibilityLabel: String? = null
+
+  // Accessibility delegate for link focus support via ExploreByTouchHelper
+  private var accessibilityDelegate: FabricHTMLTextAccessibilityDelegate? = null
 
   // Height animation state
   private var previousHeight: Int = 0
@@ -155,6 +163,17 @@ class FabricHTMLTextView : AppCompatTextView {
     movementMethod = LinkClickMovementMethod { url, type ->
       linkClickListener?.onLinkClick(url, type)
     }
+
+    // Set up ExploreByTouchHelper delegate for link accessibility.
+    // This provides virtual accessibility nodes for each link, allowing TalkBack users
+    // to navigate between links individually.
+    // IMPORTANT: We must capture original focusable and importantForAccessibility values
+    // BEFORE creating the delegate, as ExploreByTouchHelper modifies them in its constructor.
+    val originalFocus = isFocusable
+    val originalImportantForA11y = importantForAccessibility
+    accessibilityDelegate = FabricHTMLTextAccessibilityDelegate(this, originalFocus, originalImportantForA11y)
+    ViewCompat.setAccessibilityDelegate(this, accessibilityDelegate)
+    logA11y("init: set up ExploreByTouchHelper delegate for link accessibility")
   }
 
   // Text style prop setters - called from ViewManager
@@ -325,20 +344,33 @@ class FabricHTMLTextView : AppCompatTextView {
 
   /**
    * Update content description to indicate truncation for TalkBack users.
+   * This appends truncation info to the resolved accessibility label.
    */
   private fun updateAccessibilityForTruncation() {
-    if (numberOfLines > 0 && text?.isNotEmpty() == true) {
+    // Get the base accessibility label (resolved from C++ or fall back to plain text)
+    val baseLabel = resolvedAccessibilityLabel ?: (stateSpannable ?: text)?.toString() ?: ""
+
+    if (numberOfLines > 0 && baseLabel.isNotEmpty()) {
       // Check if content would be truncated
       val layout = customLayout ?: layout
       if (layout != null && layout.lineCount > numberOfLines) {
-        // Content is truncated - provide hint
-        contentDescription = text.toString() + ". Content is truncated."
-      } else {
-        contentDescription = null // Use default text content
+        // Content is truncated - only read visible text, then indicate truncation
+        val visibleEndOffset = layout.getLineEnd(numberOfLines - 1)
+        val fullText = (stateSpannable ?: text)?.toString() ?: ""
+        val visibleText = if (visibleEndOffset < fullText.length) {
+          fullText.substring(0, visibleEndOffset).trim()
+        } else {
+          fullText
+        }
+        val truncatedMessage = context.resources.getString(R.string.a11y_content_truncated)
+        contentDescription = "$visibleText. $truncatedMessage."
+        logA11y("Truncated: showing $visibleEndOffset of ${fullText.length} chars")
+        return
       }
-    } else {
-      contentDescription = null
     }
+
+    // Not truncated - use the base accessibility label
+    contentDescription = if (baseLabel.isNotEmpty()) baseLabel else null
   }
 
   fun setAnimationDuration(duration: Float) {
@@ -356,6 +388,22 @@ class FabricHTMLTextView : AppCompatTextView {
    */
   fun setWritingDirectionFromState(rtl: Boolean) {
     applyRTLState(rtl)
+  }
+
+  /**
+   * Sets the resolved accessibility label from C++ state.
+   * This label has proper pauses for list items and is built by the C++ parser.
+   *
+   * We set this as the view's contentDescription to ensure TalkBack reads plain text
+   * instead of the styled Spannable content. contentDescription completely overrides
+   * any text-based accessibility info for the view.
+   */
+  fun setResolvedAccessibilityLabel(label: String?) {
+    resolvedAccessibilityLabel = label
+    // Set contentDescription to override styled text with plain text for TalkBack
+    // This prevents TalkBack from reading span style information
+    contentDescription = label
+    logA11y("setResolvedAccessibilityLabel: ${label?.length ?: 0} chars, set as contentDescription")
   }
 
   /**
@@ -454,11 +502,22 @@ class FabricHTMLTextView : AppCompatTextView {
       }
     }
 
+    // Update accessibility delegate with new link information
+    accessibilityDelegate?.updateLinks()
+
     // Update accessibility after content changes
     post { updateAccessibilityForTruncation() }
 
     invalidate()
     requestLayout()
+  }
+
+  /**
+   * Programmatically perform a link click.
+   * Used by accessibility delegate to trigger link clicks from TalkBack actions.
+   */
+  internal fun performLinkClick(url: String, type: DetectedContentType) {
+    linkClickListener?.onLinkClick(url, type)
   }
 
   private fun rebuildIfNeeded() {
@@ -953,241 +1012,40 @@ class FabricHTMLTextView : AppCompatTextView {
 
   // MARK: - AccessibilityNodeProvider for Virtual Link Nodes
 
-  /**
-   * Provides virtual accessibility nodes for each link in the text.
-   * This allows TalkBack to navigate between links as if they were separate views.
-   */
-  override fun getAccessibilityNodeProvider(): AccessibilityNodeProvider? {
-    val linkRanges = getAllLinkRanges()
-    // If no links, return null to use default accessibility behavior
-    if (linkRanges.isEmpty()) return null
-
-    return LinkAccessibilityNodeProvider()
+  private fun logA11y(message: String) {
+    if (A11Y_DEBUG) {
+      Log.d(A11Y_TAG, "[${hashCode().toString(16)}] $message")
+    }
   }
 
   /**
-   * AccessibilityNodeProvider that creates virtual nodes for each link.
-   * Virtual node IDs are 1-based (0 is reserved for the host view).
+   * Override to provide plain text content for accessibility, preventing TalkBack
+   * from reading span styling information (colors, fonts, etc.).
+   *
+   * We set both text and contentDescription to plain String to ensure
+   * TalkBack reads plain text instead of the styled Spannable.
    */
-  private inner class LinkAccessibilityNodeProvider : AccessibilityNodeProvider() {
+  override fun onInitializeAccessibilityNodeInfo(info: AccessibilityNodeInfo) {
+    super.onInitializeAccessibilityNodeInfo(info)
 
-    // HOST_VIEW_ID constant for the host view (moved here since inner classes can't have companion objects)
-    private val hostViewId = View.NO_ID
+    // Get the plain text accessibility label
+    val plainText = resolvedAccessibilityLabel ?: (stateSpannable ?: text)?.toString() ?: ""
 
-    override fun createAccessibilityNodeInfo(virtualViewId: Int): AccessibilityNodeInfo? {
-      if (virtualViewId == hostViewId) {
-        // Create node info for the host view
-        return createHostNodeInfo()
-      }
+    // Set BOTH text and contentDescription to plain String
+    // This should prevent TalkBack from accessing the Spannable
+    info.text = plainText
+    info.contentDescription = plainText
 
-      // Virtual view IDs are 1-based indices into the link list
-      val linkIndex = virtualViewId - 1
-      return createLinkNodeInfo(linkIndex, virtualViewId)
-    }
-
-    private fun createHostNodeInfo(): AccessibilityNodeInfo {
-      val info = AccessibilityNodeInfo.obtain(this@FabricHTMLTextView)
-      info.setSource(this@FabricHTMLTextView)
-      info.className = FabricHTMLTextView::class.java.name
-      info.packageName = context.packageName
-
-      // Add the view's bounds
-      val rect = Rect()
-      this@FabricHTMLTextView.getGlobalVisibleRect(rect)
-      info.setBoundsInScreen(rect)
-
-      // Make the host focusable but not the main accessibility element
-      info.isVisibleToUser = true
-      info.isEnabled = true
-
-      // Add virtual child nodes for each link
-      val visibleLinkCount = getVisibleLinkCount()
-      for (i in 0 until visibleLinkCount) {
-        info.addChild(this@FabricHTMLTextView, i + 1) // 1-based IDs
-      }
-
-      // Set content description for the entire view
-      val spannable = stateSpannable ?: (text as? Spannable)
-      if (spannable != null) {
-        if (visibleLinkCount > 0) {
-          val linkWord = if (visibleLinkCount == 1) "link" else "links"
-          info.contentDescription = "$spannable. Contains $visibleLinkCount $linkWord."
-        } else {
-          info.contentDescription = spannable.toString()
-        }
-      }
-
-      return info
-    }
-
-    private fun createLinkNodeInfo(linkIndex: Int, virtualViewId: Int): AccessibilityNodeInfo? {
-      val linkRanges = getAllLinkRanges()
-      if (linkIndex < 0 || linkIndex >= linkRanges.size) return null
-
-      val range = linkRanges[linkIndex]
-      val spannable = stateSpannable ?: (text as? Spannable) ?: return null
-
-      // Get the link text
-      val linkText = spannable.subSequence(range.first, range.last + 1).toString()
-
-      // Get the URL and determine link type
-      val spans = spannable.getSpans(range.first, range.last + 1, ClickableSpan::class.java)
-      val url = when (val span = spans.firstOrNull()) {
-        is HrefClickableSpan -> span.href
-        is android.text.style.URLSpan -> span.url
-        else -> null
-      }
-
-      val linkType = when {
-        url?.startsWith("mailto:") == true -> "email"
-        url?.startsWith("tel:") == true -> "phone"
-        else -> "link"
-      }
-
-      val info = AccessibilityNodeInfo.obtain(this@FabricHTMLTextView, virtualViewId)
-      info.setSource(this@FabricHTMLTextView, virtualViewId)
-      info.className = "android.widget.Button" // Best match for clickable link behavior
-      info.packageName = context.packageName
-
-      // Set parent
-      info.setParent(this@FabricHTMLTextView)
-
-      // Set bounds in screen coordinates
-      val linkBounds = getLinkBounds(linkIndex)
-      if (linkBounds != null) {
-        val screenRect = Rect()
-        this@FabricHTMLTextView.getGlobalVisibleRect(screenRect)
-
-        val boundsInScreen = Rect(
-          (screenRect.left + linkBounds.left).toInt(),
-          (screenRect.top + linkBounds.top).toInt(),
-          (screenRect.left + linkBounds.right).toInt(),
-          (screenRect.top + linkBounds.bottom).toInt()
-        )
-        info.setBoundsInScreen(boundsInScreen)
-      }
-
-      // Set content description with position info (WCAG 2.1 Level AA compliance)
-      val visibleLinkCount = getVisibleLinkCount()
-      val positionInfo = "Link ${linkIndex + 1} of $visibleLinkCount"
-      info.contentDescription = "$linkText. $positionInfo."
-
-      // Set hint based on link type (API 26+)
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        when (linkType) {
-          "email" -> info.hintText = "Double tap to compose email"
-          "phone" -> info.hintText = "Double tap to call"
-          else -> info.hintText = "Double tap to open link"
-        }
-      }
-
-      // Set accessibility properties
-      info.isVisibleToUser = true
-      info.isEnabled = true
-      info.isClickable = true
-      info.isFocusable = true
-      info.isFocused = false
-
-      // Add click action
-      info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_CLICK)
-      info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_ACCESSIBILITY_FOCUS)
-      info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_CLEAR_ACCESSIBILITY_FOCUS)
-
-      return info
-    }
-
-    override fun performAction(virtualViewId: Int, action: Int, arguments: android.os.Bundle?): Boolean {
-      if (virtualViewId == hostViewId) {
-        // Delegate to host view's default action handling
-        return this@FabricHTMLTextView.performAccessibilityAction(action, arguments)
-      }
-
-      val linkIndex = virtualViewId - 1
-      val linkRanges = getAllLinkRanges()
-      if (linkIndex < 0 || linkIndex >= linkRanges.size) return false
-
-      when (action) {
-        AccessibilityNodeInfo.ACTION_CLICK -> {
-          // Find and click the link
-          val range = linkRanges[linkIndex]
-          val spannable = stateSpannable ?: (text as? Spannable) ?: return false
-          val spans = spannable.getSpans(range.first, range.last + 1, ClickableSpan::class.java)
-
-          if (spans.isNotEmpty()) {
-            val span = spans[0]
-            val url = when (span) {
-              is HrefClickableSpan -> span.href
-              is android.text.style.URLSpan -> span.url
-              else -> return false
-            }
-
-            // Validate URL scheme before invoking callback
-            val scheme = android.net.Uri.parse(url).scheme?.lowercase()
-            val allowedSchemes = setOf("http", "https", "mailto", "tel")
-            if (scheme == null || scheme !in allowedSchemes) {
-              return false
-            }
-
-            val type = when {
-              url.startsWith("mailto:") -> DetectedContentType.EMAIL
-              url.startsWith("tel:") -> DetectedContentType.PHONE
-              else -> DetectedContentType.LINK
-            }
-
-            linkClickListener?.onLinkClick(url, type)
-            return true
-          }
-          return false
-        }
-
-        AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS -> {
-          // Send focus event
-          sendAccessibilityEventForVirtualView(
-            virtualViewId,
-            AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED
-          )
-          return true
-        }
-
-        AccessibilityNodeInfo.ACTION_CLEAR_ACCESSIBILITY_FOCUS -> {
-          // Send focus cleared event
-          sendAccessibilityEventForVirtualView(
-            virtualViewId,
-            AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUS_CLEARED
-          )
-          return true
-        }
-      }
-
-      return false
-    }
-
-    private fun sendAccessibilityEventForVirtualView(virtualViewId: Int, eventType: Int) {
-      val event = AccessibilityEvent.obtain(eventType)
-      event.packageName = context.packageName
-      event.className = FabricHTMLTextView::class.java.name
-      event.setSource(this@FabricHTMLTextView, virtualViewId)
-      event.isEnabled = true
-
-      // Add content description from the node info
-      val linkIndex = virtualViewId - 1
-      val linkRanges = getAllLinkRanges()
-      if (linkIndex >= 0 && linkIndex < linkRanges.size) {
-        val range = linkRanges[linkIndex]
-        val spannable = stateSpannable ?: (text as? Spannable)
-        if (spannable != null) {
-          val linkText = spannable.subSequence(range.first, range.last + 1).toString()
-          val visibleLinkCount = getVisibleLinkCount()
-          event.contentDescription = "$linkText. Link ${linkIndex + 1} of $visibleLinkCount."
-        }
-      }
-
-      this@FabricHTMLTextView.parent?.requestSendAccessibilityEvent(
-        this@FabricHTMLTextView,
-        event
-      )
-    }
+    logA11y("onInitializeAccessibilityNodeInfo: set plain text, length=${plainText.length}")
   }
+
+  // Note: We use ExploreByTouchHelper (FabricHTMLTextAccessibilityDelegate) set via
+  // ViewCompat.setAccessibilityDelegate() to provide virtual accessibility nodes for links.
+  // The delegate handles getAccessibilityNodeProvider() automatically - we do NOT override
+  // the View's getAccessibilityNodeProvider() method as that would interfere with the delegate.
+  //
+  // The getLinkBounds(), getVisibleLinkCount(), and other link-related methods are kept
+  // for potential future use (e.g., visual focus indicators, programmatic link activation).
 }
 
 private class LinkClickMovementMethod(
