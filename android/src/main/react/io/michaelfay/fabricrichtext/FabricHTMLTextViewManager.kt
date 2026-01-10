@@ -41,6 +41,26 @@ class LinkPressEvent(
   }
 }
 
+class RichTextMeasurementEvent(
+  surfaceId: Int,
+  viewId: Int,
+  private val measuredLineCount: Int,
+  private val visibleLineCount: Int
+) : Event<RichTextMeasurementEvent>(surfaceId, viewId) {
+  override fun getEventName(): String = EVENT_NAME
+
+  override fun getEventData(): WritableMap {
+    val eventData = Arguments.createMap()
+    eventData.putInt("measuredLineCount", measuredLineCount)
+    eventData.putInt("visibleLineCount", visibleLineCount)
+    return eventData
+  }
+
+  companion object {
+    const val EVENT_NAME = "topRichTextMeasurement"
+  }
+}
+
 @ReactModule(name = FabricRichTextViewManager.NAME)
 class FabricRichTextViewManager : SimpleViewManager<FabricRichTextView>(),
   FabricRichTextManagerInterface<FabricRichTextView> {
@@ -65,6 +85,13 @@ class FabricRichTextViewManager : SimpleViewManager<FabricRichTextView>(),
         val eventDispatcher = UIManagerHelper.getEventDispatcherForReactTag(context, view.id)
         val surfaceId = UIManagerHelper.getSurfaceId(context)
         eventDispatcher?.dispatchEvent(LinkPressEvent(surfaceId, view.id, url, type))
+      }
+    }
+    view.measurementListener = object : MeasurementListener {
+      override fun onMeasurement(measuredLineCount: Int, visibleLineCount: Int) {
+        val eventDispatcher = UIManagerHelper.getEventDispatcherForReactTag(context, view.id)
+        val surfaceId = UIManagerHelper.getSurfaceId(context)
+        eventDispatcher?.dispatchEvent(RichTextMeasurementEvent(surfaceId, view.id, measuredLineCount, visibleLineCount))
       }
     }
     return view
@@ -176,6 +203,7 @@ class FabricRichTextViewManager : SimpleViewManager<FabricRichTextView>(),
   override fun getExportedCustomDirectEventTypeConstants(): Map<String, Any>? {
     return MapBuilder.builder<String, Any>()
       .put(LinkPressEvent.EVENT_NAME, MapBuilder.of("registrationName", "onLinkPress"))
+      .put(RichTextMeasurementEvent.EVENT_NAME, MapBuilder.of("registrationName", "onRichTextMeasurement"))
       .build()
   }
 

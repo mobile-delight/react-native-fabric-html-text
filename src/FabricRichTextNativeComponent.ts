@@ -34,6 +34,13 @@ type LinkFocusChangeEvent = Readonly<{
   totalLinks: Int32;
 }>;
 
+type RichTextMeasurementEvent = Readonly<{
+  // Total number of lines the text would occupy without truncation
+  measuredLineCount: Int32;
+  // Number of lines actually visible (after numberOfLines truncation)
+  visibleLineCount: Int32;
+}>;
+
 interface NativeProps extends ViewProps {
   html: string;
   // testID is inherited from ViewProps - do not redeclare here
@@ -72,6 +79,9 @@ interface NativeProps extends ViewProps {
 
   // Accessibility link focus event
   onLinkFocusChange?: DirectEventHandler<LinkFocusChangeEvent>;
+
+  // Text measurement event (line counts)
+  onRichTextMeasurement?: DirectEventHandler<RichTextMeasurementEvent>;
 }
 
 export default codegenNativeComponent<NativeProps>(

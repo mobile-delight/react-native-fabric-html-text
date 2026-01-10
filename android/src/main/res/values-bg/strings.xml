@@ -14,7 +14,4 @@
     <string name="a11y_italic">курсив</string>
     <string name="a11y_underline">подчертавам</string>
     <string name="a11y_strikethrough">зачеркнат</string>
-
-    <!-- Accessibility: Truncation indicator -->
-    <string name="a11y_content_truncated">Съдържанието е съкратено</string>
 </resources>

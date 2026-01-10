@@ -14,7 +14,4 @@
     <string name="a11y_italic">italic</string>
     <string name="a11y_underline">underline</string>
     <string name="a11y_strikethrough">strikethrough</string>
-
-    <!-- Accessibility: Truncation indicator -->
-    <string name="a11y_content_truncated">Content is truncated</string>
 </resources>

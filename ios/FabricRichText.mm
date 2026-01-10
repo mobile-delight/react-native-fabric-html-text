@@ -197,4 +197,15 @@ using namespace facebook::react;
     }
 }
 
+- (void)coreTextView:(id)view didMeasureWithLineCount:(NSInteger)measuredLineCount visibleLineCount:(NSInteger)visibleLineCount
+{
+    if (_eventEmitter) {
+        auto eventEmitter = std::static_pointer_cast<FabricRichTextEventEmitter const>(_eventEmitter);
+        facebook::react::FabricRichTextEventEmitter::OnRichTextMeasurement event;
+        event.measuredLineCount = static_cast<int>(measuredLineCount);
+        event.visibleLineCount = static_cast<int>(visibleLineCount);
+        eventEmitter->onRichTextMeasurement(event);
+    }
+}
+
 @end

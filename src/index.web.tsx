@@ -15,6 +15,7 @@ export type DetectedContentType = 'link' | 'email' | 'phone';
 export type {
   LinkFocusEvent,
   LinkFocusType,
+  RichTextMeasurementData,
 } from './types/RichTextNativeProps';
 
 // FabricRichText is not available on web - provide a helpful error if accessed

@@ -12,6 +12,3 @@
 "a11y_italic" = "italic";
 "a11y_underline" = "underline";
 "a11y_strikethrough" = "strikethrough";
-
-/* Accessibility: Truncation indicator */
-"a11y_content_truncated" = "Content is truncated";

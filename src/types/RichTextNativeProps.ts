@@ -18,6 +18,21 @@ export type WritingDirection = 'auto' | 'ltr' | 'rtl';
 export type LinkFocusType = DetectedContentType | 'detected';
 
 /**
+ * Event data for text measurement.
+ */
+export interface RichTextMeasurementData {
+  /**
+   * Total number of lines the text would occupy without truncation.
+   */
+  measuredLineCount: number;
+
+  /**
+   * Number of lines actually visible (after numberOfLines truncation).
+   */
+  visibleLineCount: number;
+}
+
+/**
  * Event data for link focus changes.
  */
 export interface LinkFocusEvent {
@@ -133,4 +148,12 @@ export interface RichTextNativeProps extends ViewProps {
    * @param event - Contains information about the newly focused link
    */
   onLinkFocusChange?: ((event: LinkFocusEvent) => void) | undefined;
+
+  /**
+   * Callback fired when the text has been measured and laid out.
+   * Provides information about line counts for truncation detection.
+   *
+   * @param data - Contains measured and visible line counts
+   */
+  onRichTextMeasurement?: ((data: RichTextMeasurementData) => void) | undefined;
 }
