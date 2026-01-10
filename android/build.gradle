@@ -4,8 +4,8 @@ buildscript {
       return rootProject.ext.get(name)
     } else if (rootProject.hasProperty(name)) {
       return rootProject.properties[name]
-    } else if (project.hasProperty('FabricHtmlText_' + name)) {
-      return project.properties['FabricHtmlText_' + name]
+    } else if (project.hasProperty('FabricRichText_' + name)) {
+      return project.properties['FabricRichText_' + name]
     }
     // Sensible defaults
     def defaults = [kotlinVersion: '2.0.21']
@@ -39,8 +39,8 @@ def getExtOrIntegerDefault(name) {
     return rootProject.ext.get(name)
   } else if (rootProject.hasProperty(name)) {
     return rootProject.properties[name].toInteger()
-  } else if (project.hasProperty("FabricHtmlText_" + name)) {
-    return project.properties["FabricHtmlText_" + name].toInteger()
+  } else if (project.hasProperty("FabricRichText_" + name)) {
+    return project.properties["FabricRichText_" + name].toInteger()
   }
   // Sensible defaults for library builds (minSdk 24 required by React Native 0.81+)
   def defaults = [compileSdkVersion: 35, minSdkVersion: 24, targetSdkVersion: 35]
@@ -48,7 +48,7 @@ def getExtOrIntegerDefault(name) {
 }
 
 android {
-  namespace "io.michaelfay.fabrichtmltext"
+  namespace "io.michaelfay.fabricrichtext"
 
   compileSdk 35
 
@@ -112,6 +112,13 @@ dependencies {
   testImplementation "junit:junit:4.13.2"
   testImplementation "org.robolectric:robolectric:4.16"
   testImplementation "androidx.appcompat:appcompat:1.7.0"
+
+  // Instrumentation tests with ATF (Accessibility Testing Framework)
+  // Run with: ./gradlew connectedAndroidTest
+  androidTestImplementation "androidx.test.ext:junit:1.2.1"
+  androidTestImplementation "androidx.test:runner:1.6.2"
+  androidTestImplementation "androidx.test.espresso:espresso-core:3.6.1"
+  androidTestImplementation "androidx.test.espresso:espresso-accessibility:3.6.1"
 }
 
 // Native C++ build configuration is handled by jni/CMakeLists.txt

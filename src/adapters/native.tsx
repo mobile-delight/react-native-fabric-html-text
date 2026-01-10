@@ -1,9 +1,9 @@
 import { useCallback, useMemo, type ReactElement } from 'react';
 import { processColor, StyleSheet, type TextStyle } from 'react-native';
-import FabricHTMLText, {
+import FabricRichText, {
   type DetectedContentType,
-} from '../FabricHTMLTextNativeComponent';
-import type { HTMLTextNativeProps } from '../types/HTMLTextNativeProps';
+} from '../FabricRichTextNativeComponent';
+import type { RichTextNativeProps } from '../types/RichTextNativeProps';
 
 interface LinkPressEvent {
   nativeEvent: {
@@ -12,12 +12,30 @@ interface LinkPressEvent {
   };
 }
 
-export function HTMLTextNative(props: HTMLTextNativeProps): ReactElement {
+interface LinkFocusChangeNativeEvent {
+  nativeEvent: {
+    focusedLinkIndex: number;
+    url: string;
+    type: string;
+    totalLinks: number;
+  };
+}
+
+interface RichTextMeasurementNativeEvent {
+  nativeEvent: {
+    measuredLineCount: number;
+    visibleLineCount: number;
+  };
+}
+
+export function RichTextNative(props: RichTextNativeProps): ReactElement {
   const {
     html,
     style,
     testID,
     onLinkPress,
+    onLinkFocusChange,
+    onRichTextMeasurement,
     tagStyles,
     className,
     detectLinks,
@@ -38,6 +56,37 @@ export function HTMLTextNative(props: HTMLTextNativeProps): ReactElement {
     [onLinkPress]
   );
 
+  const handleLinkFocusChange = useCallback(
+    (event: LinkFocusChangeNativeEvent): void => {
+      if (onLinkFocusChange) {
+        const { focusedLinkIndex, url, type, totalLinks } = event.nativeEvent;
+        // Convert native event format to TypeScript LinkFocusEvent
+        // Native uses -1 for container focus; we preserve that
+        // Native uses empty string for null values; we convert to null
+        onLinkFocusChange({
+          focusedLinkIndex: focusedLinkIndex,
+          url: url || null,
+          type: type ? (type as 'link' | 'email' | 'phone' | 'detected') : null,
+          totalLinks,
+        });
+      }
+    },
+    [onLinkFocusChange]
+  );
+
+  const handleRichTextMeasurement = useCallback(
+    (event: RichTextMeasurementNativeEvent): void => {
+      if (onRichTextMeasurement) {
+        const { measuredLineCount, visibleLineCount } = event.nativeEvent;
+        onRichTextMeasurement({
+          measuredLineCount,
+          visibleLineCount,
+        });
+      }
+    },
+    [onRichTextMeasurement]
+  );
+
   const serializedTagStyles = useMemo((): string | undefined => {
     if (!tagStyles || Object.keys(tagStyles).length === 0) {
       return undefined;
@@ -46,7 +95,7 @@ export function HTMLTextNative(props: HTMLTextNativeProps): ReactElement {
       return JSON.stringify(tagStyles);
     } catch (error) {
       if (__DEV__) {
-        console.error('[HTMLText] Failed to serialize tagStyles:', error);
+        console.error('[RichText] Failed to serialize tagStyles:', error);
       }
       return undefined;
     }
@@ -85,11 +134,13 @@ export function HTMLTextNative(props: HTMLTextNativeProps): ReactElement {
   const effectiveAnimationDuration = animationDuration ?? 0.2;
 
   return (
-    <FabricHTMLText
+    <FabricRichText
       html={html}
       style={style}
       testID={testID}
       onLinkPress={handleLinkPress}
+      onLinkFocusChange={handleLinkFocusChange}
+      onRichTextMeasurement={handleRichTextMeasurement}
       tagStyles={serializedTagStyles}
       className={className}
       fontSize={fontSize}
