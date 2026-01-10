@@ -4,7 +4,10 @@ import { I18nManager } from 'react-native';
 import { sanitize } from '../core/sanitize';
 import { RichTextNative } from '../adapters/native';
 import type { DetectedContentType } from '../FabricRichTextNativeComponent';
-import type { WritingDirection } from '../types/RichTextNativeProps';
+import type {
+  WritingDirection,
+  RichTextMeasurementData,
+} from '../types/RichTextNativeProps';
 
 export interface RichTextProps {
   /** HTML string to render */
@@ -70,6 +73,15 @@ export interface RichTextProps {
    * @default 'auto'
    */
   writingDirection?: WritingDirection | undefined;
+  /**
+   * Callback fired when the text has been measured and laid out.
+   * Provides information about line counts for truncation detection.
+   *
+   * @param data - Contains measured and visible line counts
+   */
+  onRichTextMeasurement?:
+    | ((data: RichTextMeasurementData) => void)
+    | undefined;
 }
 
 export default function RichText({
@@ -85,6 +97,7 @@ export default function RichText({
   numberOfLines,
   animationDuration,
   writingDirection = 'auto',
+  onRichTextMeasurement,
 }: RichTextProps): ReactElement | null {
   if (!html) {
     return null;
@@ -119,6 +132,7 @@ export default function RichText({
       numberOfLines={numberOfLines}
       animationDuration={animationDuration}
       writingDirection={resolvedDirection}
+      onRichTextMeasurement={onRichTextMeasurement}
     />
   );
 }

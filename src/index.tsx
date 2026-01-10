@@ -11,4 +11,5 @@ export type { WritingDirection } from './types/RichTextNativeProps';
 export type {
   LinkFocusEvent,
   LinkFocusType,
+  RichTextMeasurementData,
 } from './types/RichTextNativeProps';

@@ -46,6 +46,8 @@ static NSString *const HTMLDetectedContentTypeKey = @"HTMLDetectedContentType";
   CGFloat _previousContentHeight; // Track height for animation
   BOOL _hasInitializedHeight; // Flag for first layout
   NSArray<FabricRichLinkAccessibilityElement *> *_accessibilityElements; // Cached accessibility elements
+  NSInteger _lastReportedMeasuredLineCount; // Track last reported value to avoid redundant events
+  NSInteger _lastReportedVisibleLineCount; // Track last reported value to avoid redundant events
 #if DEBUG
   NSArray<NSDictionary *> *_debugLineInfo; // Cached debug info for each line
 #endif
@@ -59,6 +61,8 @@ static NSString *const HTMLDetectedContentTypeKey = @"HTMLDetectedContentType";
     _previousContentHeight = 0;
     _hasInitializedHeight = NO;
     _animationDuration = 0.2; // Default animation duration
+    _lastReportedMeasuredLineCount = -1; // Invalid value to force first report
+    _lastReportedVisibleLineCount = -1;
   }
   return self;
 }
@@ -259,44 +263,18 @@ static NSString *const HTMLDetectedContentTypeKey = @"HTMLDetectedContentType";
 
         if (truncationIndex > 0 && truncationIndex <= (CFIndex)continuousText.length) {
           NSUInteger truncatedEnd = (NSUInteger)truncationIndex;
-          NSString *lastLineVisible = [continuousText.string substringToIndex:truncatedEnd];
 
-          // Trim trailing whitespace
-          lastLineVisible = [lastLineVisible stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+          A11Y_LOG(@"visibleTextForAccessibility: before word boundary adjustment, truncatedEnd=%lu, continuousLength=%lu",
+                   (unsigned long)truncatedEnd, (unsigned long)continuousText.length);
 
-          A11Y_LOG(@"visibleTextForAccessibility: before word trim, lastLineVisible length=%lu, truncatedEnd=%lu, continuousLength=%lu",
-                   (unsigned long)lastLineVisible.length, (unsigned long)truncatedEnd, (unsigned long)continuousText.length);
+          // Adjust to word boundary if we cut mid-word
+          NSUInteger adjustedEnd = [self adjustTruncationIndexToWordBoundary:continuousText.string atIndex:truncatedEnd];
 
-          // Find the last complete word - if the text was cut mid-word, trim to the previous word boundary
-          // Check BOTH the last visible character AND the first hidden character to determine if mid-word
-          if (lastLineVisible.length > 0 && truncatedEnd < continuousText.length) {
-            unichar lastVisibleChar = [lastLineVisible characterAtIndex:lastLineVisible.length - 1];
-            unichar firstHiddenChar = [continuousText.string characterAtIndex:truncatedEnd];
+          A11Y_LOG(@"visibleTextForAccessibility: after word boundary adjustment, adjustedEnd=%lu (was %lu)",
+                   (unsigned long)adjustedEnd, (unsigned long)truncatedEnd);
 
-            NSCharacterSet *alphanumeric = [NSCharacterSet alphanumericCharacterSet];
-            BOOL lastVisibleIsAlpha = [alphanumeric characterIsMember:lastVisibleChar];
-            BOOL firstHiddenIsAlpha = [alphanumeric characterIsMember:firstHiddenChar];
-            BOOL cutMidWord = lastVisibleIsAlpha && firstHiddenIsAlpha;
-
-            A11Y_LOG(@"visibleTextForAccessibility: lastVisibleChar='%C' (alpha=%d), firstHiddenChar='%C' (alpha=%d), cutMidWord=%d",
-                     lastVisibleChar, lastVisibleIsAlpha, firstHiddenChar, firstHiddenIsAlpha, cutMidWord);
-
-            if (cutMidWord) {
-              // Find the last space to get the last complete word
-              NSRange lastSpace = [lastLineVisible rangeOfCharacterFromSet:[NSCharacterSet whitespaceCharacterSet]
-                                                                   options:NSBackwardsSearch];
-              A11Y_LOG(@"visibleTextForAccessibility: looking for word boundary, lastSpace.location=%lu",
-                       (unsigned long)(lastSpace.location == NSNotFound ? -1 : lastSpace.location));
-              if (lastSpace.location != NSNotFound) {
-                NSString *beforeTrim = lastLineVisible;
-                lastLineVisible = [lastLineVisible substringToIndex:lastSpace.location];
-                lastLineVisible = [lastLineVisible stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-                A11Y_LOG(@"visibleTextForAccessibility: trimmed mid-word, before='%@', after='%@'",
-                         [beforeTrim substringFromIndex:MAX(0, (NSInteger)beforeTrim.length - 20)],
-                         [lastLineVisible substringFromIndex:MAX(0, (NSInteger)lastLineVisible.length - 20)]);
-              }
-            }
-          }
+          NSString *lastLineVisible = [[continuousText.string substringToIndex:adjustedEnd]
+              stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
 
           A11Y_LOG(@"visibleTextForAccessibility: lastLineVisible='%@'", lastLineVisible);
           [visibleText appendString:lastLineVisible];
@@ -694,6 +672,74 @@ static BOOL kDebugDrawLineBounds = NO;
   }
 
   CGContextRestoreGState(context);
+
+  // Report line count measurements to delegate
+  [self reportLineMeasurementsIfNeeded];
+}
+
+/**
+ * Computes line counts and notifies delegate if values have changed.
+ * - measuredLineCount: Total lines the text would occupy without truncation
+ * - visibleLineCount: Actual lines visible (limited by numberOfLines)
+ */
+- (void)reportLineMeasurementsIfNeeded {
+  NSAttributedString *textToRender = _processedAttributedText ?: _attributedText;
+  if (textToRender.length == 0) {
+    return;
+  }
+
+  // Get visible line count from the current (potentially constrained) frame
+  CTFrameRef frame = [self ctFrame];
+  if (!frame) {
+    return;
+  }
+
+  CFArrayRef visibleLines = CTFrameGetLines(frame);
+  NSInteger visibleLineCount = (NSInteger)CFArrayGetCount(visibleLines);
+
+  // Compute measured line count (total lines without truncation)
+  // Create an unconstrained frame to count all lines
+  NSInteger measuredLineCount = visibleLineCount;
+
+  NSAttributedString *directedText = textToRender;
+  if (_isRTL) {
+    directedText = [self applyBaseWritingDirection:textToRender isRTL:YES];
+  }
+
+  CTFramesetterRef framesetter = CTFramesetterCreateWithAttributedString(
+      (__bridge CFAttributedStringRef)directedText);
+
+  if (framesetter) {
+    // Use same width but unconstrained height
+    CGRect unconstrainedBounds = CGRectMake(0, 0, self.bounds.size.width, CGFLOAT_MAX);
+    CGMutablePathRef path = CGPathCreateMutable();
+    CGPathAddRect(path, NULL, unconstrainedBounds);
+
+    CTFrameRef unconstrainedFrame = CTFramesetterCreateFrame(
+        framesetter, CFRangeMake(0, 0), path, NULL);
+
+    if (unconstrainedFrame) {
+      CFArrayRef allLines = CTFrameGetLines(unconstrainedFrame);
+      measuredLineCount = (NSInteger)CFArrayGetCount(allLines);
+      CFRelease(unconstrainedFrame);
+    }
+
+    CGPathRelease(path);
+    CFRelease(framesetter);
+  }
+
+  // Only notify delegate if values changed
+  if (measuredLineCount != _lastReportedMeasuredLineCount ||
+      visibleLineCount != _lastReportedVisibleLineCount) {
+    _lastReportedMeasuredLineCount = measuredLineCount;
+    _lastReportedVisibleLineCount = visibleLineCount;
+
+    if ([_delegate respondsToSelector:@selector(coreTextView:didMeasureWithLineCount:visibleLineCount:)]) {
+      [_delegate coreTextView:self
+          didMeasureWithLineCount:measuredLineCount
+               visibleLineCount:visibleLineCount];
+    }
+  }
 }
 
 /**
@@ -797,15 +843,65 @@ static BOOL kDebugDrawLineBounds = NO;
       NSAttributedString *ellipsisString = [[NSAttributedString alloc] initWithString:@"\u2026" attributes:attributes];
       CTLineRef ellipsisLine = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)ellipsisString);
 
-      // Create a truncated line
+      // Create a truncated line with word-boundary awareness
+      // First, we use CTLineCreateTruncatedLine to find the truncation point,
+      // then we check if it cut mid-word and adjust accordingly.
       CTLineRef truncatedLine = CTLineCreateTruncatedLine(continuousLine, availableWidth, kCTLineTruncationEnd, ellipsisLine);
 
       NSLog(@"[FabricRichText] CTLineCreateTruncatedLine result: %@", truncatedLine ? @"SUCCESS" : @"NULL");
 
       if (truncatedLine) {
-        CGContextSetTextPosition(context, lastOrigin.x, lastOrigin.y);
-        CTLineDraw(truncatedLine, context);
-        NSLog(@"[FabricRichText] Drew truncated line at origin (%.1f, %.1f)", lastOrigin.x, lastOrigin.y);
+        // Calculate the width of text only (without ellipsis) to find truncation point
+        CGFloat ellipsisWidth = CTLineGetTypographicBounds(ellipsisLine, NULL, NULL, NULL);
+        CGFloat truncatedLineWidth = CTLineGetTypographicBounds(truncatedLine, NULL, NULL, NULL);
+        CGFloat textOnlyWidth = truncatedLineWidth - ellipsisWidth;
+
+        // Find the character index at the truncation point
+        CFIndex truncationIndex = CTLineGetStringIndexForPosition(continuousLine, CGPointMake(textOnlyWidth, 0));
+        NSLog(@"[FabricRichText] truncationIndex=%ld, textOnlyWidth=%.1f", (long)truncationIndex, textOnlyWidth);
+
+        // Adjust to word boundary if we cut mid-word
+        NSUInteger adjustedTruncationIndex = [self adjustTruncationIndexToWordBoundary:continuousText.string
+                                                                               atIndex:(NSUInteger)truncationIndex];
+        BOOL needsWordBoundaryAdjustment = (adjustedTruncationIndex != (NSUInteger)truncationIndex);
+
+        NSLog(@"[FabricRichText] Word boundary adjustment: original=%ld, adjusted=%lu, needsAdjustment=%d",
+              (long)truncationIndex, (unsigned long)adjustedTruncationIndex, needsWordBoundaryAdjustment);
+
+        if (needsWordBoundaryAdjustment) {
+          // Create a new line with text trimmed to word boundary plus ellipsis
+          NSString *wordBoundaryText = [[continuousText.string substringToIndex:adjustedTruncationIndex]
+              stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+
+          // Get attributes from the original text for the trimmed portion
+          NSRange trimmedRange = NSMakeRange(0, MIN(adjustedTruncationIndex, continuousText.length));
+          NSMutableAttributedString *wordBoundaryAttrString = [[continuousText attributedSubstringFromRange:trimmedRange] mutableCopy];
+
+          // Trim whitespace while preserving attributes
+          NSUInteger trimmedLength = wordBoundaryText.length;
+          if (trimmedLength < wordBoundaryAttrString.length) {
+            [wordBoundaryAttrString deleteCharactersInRange:NSMakeRange(trimmedLength, wordBoundaryAttrString.length - trimmedLength)];
+          }
+
+          // Append ellipsis
+          [wordBoundaryAttrString appendAttributedString:ellipsisString];
+
+          CTLineRef wordBoundaryLine = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)wordBoundaryAttrString);
+          if (wordBoundaryLine) {
+            CGContextSetTextPosition(context, lastOrigin.x, lastOrigin.y);
+            CTLineDraw(wordBoundaryLine, context);
+            NSLog(@"[FabricRichText] Drew word-boundary truncated line: '%@'", wordBoundaryAttrString.string);
+            CFRelease(wordBoundaryLine);
+          } else {
+            // Fallback to original truncated line
+            CGContextSetTextPosition(context, lastOrigin.x, lastOrigin.y);
+            CTLineDraw(truncatedLine, context);
+          }
+        } else {
+          CGContextSetTextPosition(context, lastOrigin.x, lastOrigin.y);
+          CTLineDraw(truncatedLine, context);
+          NSLog(@"[FabricRichText] Drew truncated line at origin (%.1f, %.1f)", lastOrigin.x, lastOrigin.y);
+        }
         CFRelease(truncatedLine);
       } else {
         // CTLineCreateTruncatedLine returns NULL if line fits - but we know there's more content.
@@ -877,6 +973,43 @@ static BOOL kDebugDrawLineBounds = NO;
   }
 
   return @{};
+}
+
+/**
+ * Adjusts a truncation index to the nearest word boundary if the text was cut mid-word.
+ * Returns the adjusted index (which may be the same if no adjustment needed).
+ *
+ * @param text The full text being truncated
+ * @param truncationIndex The index where truncation occurred
+ * @return The adjusted index at the last word boundary, or truncationIndex if no adjustment needed
+ */
+- (NSUInteger)adjustTruncationIndexToWordBoundary:(NSString *)text atIndex:(NSUInteger)truncationIndex {
+  if (truncationIndex == 0 || truncationIndex >= text.length) {
+    return truncationIndex;
+  }
+
+  unichar lastVisibleChar = [text characterAtIndex:truncationIndex - 1];
+  unichar firstHiddenChar = [text characterAtIndex:truncationIndex];
+
+  NSCharacterSet *alphanumeric = [NSCharacterSet alphanumericCharacterSet];
+  BOOL lastVisibleIsAlpha = [alphanumeric characterIsMember:lastVisibleChar];
+  BOOL firstHiddenIsAlpha = [alphanumeric characterIsMember:firstHiddenChar];
+  BOOL cutMidWord = lastVisibleIsAlpha && firstHiddenIsAlpha;
+
+  if (!cutMidWord) {
+    return truncationIndex;
+  }
+
+  // Find the last space to get the last complete word
+  NSString *textBeforeTruncation = [text substringToIndex:truncationIndex];
+  NSRange lastSpace = [textBeforeTruncation rangeOfCharacterFromSet:[NSCharacterSet whitespaceCharacterSet]
+                                                             options:NSBackwardsSearch];
+
+  if (lastSpace.location != NSNotFound && lastSpace.location > 0) {
+    return lastSpace.location;
+  }
+
+  return truncationIndex;
 }
 
 #if DEBUG
@@ -1409,18 +1542,13 @@ static BOOL kDebugDrawLineBounds = NO;
   textElement.containerView = self;
   // Use visible text for accessibility - only reads what's actually visible when truncated
   NSString *a11yLabel = [self visibleTextForAccessibility];
-  textElement.accessibilityLabel = a11yLabel;
   textElement.accessibilityTraits = UIAccessibilityTraitStaticText;
   // Note: accessibilityFrame is now computed dynamically in the getter
 
-  // Add truncation hint if content is truncated
-  if ([self isContentTruncated]) {
-    textElement.accessibilityHint = NSLocalizedString(@"Content is truncated", @"Accessibility hint for truncated text");
-  }
+  textElement.accessibilityLabel = a11yLabel;
 
-  A11Y_LOG(@"TEXT ELEMENT: label='%@...', truncated=%@, bounds=%@",
-           [a11yLabel substringToIndex:MIN(30, a11yLabel.length)],
-           [self isContentTruncated] ? @"YES" : @"NO",
+  A11Y_LOG(@"TEXT ELEMENT: label='%@...', bounds=%@",
+           [a11yLabel substringToIndex:MIN(50, a11yLabel.length)],
            NSStringFromCGRect(self.bounds));
 
   [elements addObject:textElement];
@@ -1526,28 +1654,8 @@ static BOOL kDebugDrawLineBounds = NO;
     return nil;
   }
   NSString *label = [self visibleTextForAccessibility];
-  A11Y_LOG(@"accessibilityLabel: '%@...'", [label substringToIndex:MIN(30, label.length)]);
+  A11Y_LOG(@"accessibilityLabel: '%@...'", [label substringToIndex:MIN(50, label.length)]);
   return label;
-}
-
-/**
- * Returns the accessibility hint for this view.
- * When content is truncated, indicates that content is truncated.
- * Returns nil when acting as a container (with links).
- */
-- (NSString *)accessibilityHint {
-  // Only provide a hint when this view is an accessibility element itself
-  // When acting as a container (with links), return nil
-  if (![self isAccessibilityElement]) {
-    A11Y_LOG(@"accessibilityHint: acting as container, returning nil");
-    return nil;
-  }
-  if ([self isContentTruncated]) {
-    A11Y_LOG(@"accessibilityHint: returning truncation hint");
-    return NSLocalizedString(@"Content is truncated", @"Accessibility hint for truncated text");
-  }
-  A11Y_LOG(@"accessibilityHint: returning nil (not truncated)");
-  return nil;
 }
 
 /**

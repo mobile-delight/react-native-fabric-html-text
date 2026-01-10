@@ -11,6 +11,7 @@ import {
 import {
   RichText,
   type DetectedContentType,
+  type RichTextMeasurementData,
 } from 'react-native-fabric-rich-text';
 import { RichText as NativeWindRichText } from 'react-native-fabric-rich-text/nativewind';
 import '../global.css';
@@ -62,12 +63,24 @@ function StyleSheetExamples({
   toggleExpanded,
   numberOfLinesDemo,
   cycleNumberOfLines,
+  measurementData,
+  onMeasurement,
+  readMoreExpanded,
+  toggleReadMore,
+  readMoreMeasurement,
+  onReadMoreMeasurement,
 }: {
   onLinkPress: (url: string, type: DetectedContentType) => void;
   expandedText: boolean;
   toggleExpanded: () => void;
   numberOfLinesDemo: number;
   cycleNumberOfLines: () => void;
+  measurementData: RichTextMeasurementData | null;
+  onMeasurement: (data: RichTextMeasurementData) => void;
+  readMoreExpanded: boolean;
+  toggleReadMore: () => void;
+  readMoreMeasurement: RichTextMeasurementData | null;
+  onReadMoreMeasurement: (data: RichTextMeasurementData) => void;
 }): React.JSX.Element {
   return (
     <>
@@ -207,7 +220,7 @@ function StyleSheetExamples({
           animationDuration={0.3}
           testID="expand-collapse-demo"
         />
-        <TouchableOpacity onPress={toggleExpanded} activeOpacity={0.7}>
+        <TouchableOpacity accessibilityRole="button" onPress={toggleExpanded} activeOpacity={0.7}>
           <Text style={styles.tapHint}>
             Tap to {expandedText ? 'collapse' : 'expand'}
           </Text>
@@ -223,12 +236,59 @@ function StyleSheetExamples({
           animationDuration={0.2}
           testID="dynamic-lines-demo"
         />
-        <TouchableOpacity onPress={cycleNumberOfLines} activeOpacity={0.7}>
+        <TouchableOpacity accessibilityRole="button" onPress={cycleNumberOfLines} activeOpacity={0.7}>
           <Text style={styles.tapHint}>
             Lines: {numberOfLinesDemo === 0 ? 'unlimited' : numberOfLinesDemo}{' '}
             (tap)
           </Text>
         </TouchableOpacity>
+      </View>
+
+      <Text style={styles.measurementSectionHeader}>Measurement Callback</Text>
+
+      <Text style={styles.sectionTitle}>Line Count Display</Text>
+      <View>
+        <RichText
+          html="<p>This paragraph uses the <strong>onRichTextMeasurement</strong> callback to report line counts. The text below shows the measured (total) and visible line counts. Try resizing the window or changing orientation to see values update.</p>"
+          style={styles.text}
+          numberOfLines={3}
+          onRichTextMeasurement={onMeasurement}
+          testID="measurement-display"
+        />
+        <View style={styles.measurementInfo}>
+          <Text style={styles.measurementText}>
+            Measured: {measurementData?.measuredLineCount ?? '—'} lines
+          </Text>
+          <Text style={styles.measurementText}>
+            Visible: {measurementData?.visibleLineCount ?? '—'} lines
+          </Text>
+          {measurementData && measurementData.measuredLineCount > measurementData.visibleLineCount && (
+            <Text style={styles.truncatedIndicator}>Content is truncated</Text>
+          )}
+        </View>
+      </View>
+
+      <Text style={styles.sectionTitle}>Smart "Read More" Pattern</Text>
+      <View>
+        <RichText
+          html="<p>This demonstrates a common UX pattern: showing a <strong>Read more</strong> button only when content is actually truncated. The button appears conditionally based on the measurement callback. This paragraph contains enough text to ensure it exceeds two lines on most screen sizes, triggering the truncation and revealing the expand option. Without the measurement callback, you'd have to guess whether content was truncated.</p>"
+          style={styles.text}
+          numberOfLines={readMoreExpanded ? 0 : 2}
+          animationDuration={0.25}
+          onRichTextMeasurement={onReadMoreMeasurement}
+          testID="smart-read-more"
+        />
+        {readMoreMeasurement && readMoreMeasurement.measuredLineCount > 2 && (
+          <TouchableOpacity
+            accessibilityRole="button"
+            onPress={toggleReadMore}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.readMoreButton}>
+              {readMoreExpanded ? 'Show less' : 'Read more'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* RTL Support Examples */}
@@ -344,6 +404,12 @@ function NativeWindExamples({
   numberOfLinesDemo,
   cycleNumberOfLines,
   colorScheme,
+  measurementData,
+  onMeasurement,
+  readMoreExpanded,
+  toggleReadMore,
+  readMoreMeasurement,
+  onReadMoreMeasurement,
 }: {
   onLinkPress: (url: string, type: DetectedContentType) => void;
   expandedText: boolean;
@@ -351,6 +417,12 @@ function NativeWindExamples({
   numberOfLinesDemo: number;
   cycleNumberOfLines: () => void;
   colorScheme: string | null | undefined;
+  measurementData: RichTextMeasurementData | null;
+  onMeasurement: (data: RichTextMeasurementData) => void;
+  readMoreExpanded: boolean;
+  toggleReadMore: () => void;
+  readMoreMeasurement: RichTextMeasurementData | null;
+  onReadMoreMeasurement: (data: RichTextMeasurementData) => void;
 }): React.JSX.Element {
   return (
     <>
@@ -492,7 +564,7 @@ function NativeWindExamples({
           animationDuration={0.3}
           testID="nw-expand-collapse-demo"
         />
-        <TouchableOpacity onPress={toggleExpanded} activeOpacity={0.7}>
+        <TouchableOpacity accessibilityRole="button" onPress={toggleExpanded} activeOpacity={0.7}>
           <Text style={styles.tapHint}>
             Tap to {expandedText ? 'collapse' : 'expand'}
           </Text>
@@ -508,12 +580,59 @@ function NativeWindExamples({
           animationDuration={0.2}
           testID="nw-dynamic-lines-demo"
         />
-        <TouchableOpacity onPress={cycleNumberOfLines} activeOpacity={0.7}>
+        <TouchableOpacity accessibilityRole="button" onPress={cycleNumberOfLines} activeOpacity={0.7}>
           <Text style={styles.tapHint}>
             Lines: {numberOfLinesDemo === 0 ? 'unlimited' : numberOfLinesDemo}{' '}
             (tap)
           </Text>
         </TouchableOpacity>
+      </View>
+
+      <Text style={styles.measurementSectionHeader}>Measurement Callback</Text>
+
+      <Text style={styles.sectionTitle}>Line Count Display</Text>
+      <View>
+        <NativeWindRichText
+          html="<p>This paragraph uses the <strong>onRichTextMeasurement</strong> callback to report line counts. The text below shows the measured (total) and visible line counts.</p>"
+          className="text-base leading-6"
+          numberOfLines={3}
+          onRichTextMeasurement={onMeasurement}
+          testID="nw-measurement-display"
+        />
+        <View style={styles.measurementInfo}>
+          <Text style={styles.measurementText}>
+            Measured: {measurementData?.measuredLineCount ?? '—'} lines
+          </Text>
+          <Text style={styles.measurementText}>
+            Visible: {measurementData?.visibleLineCount ?? '—'} lines
+          </Text>
+          {measurementData && measurementData.measuredLineCount > measurementData.visibleLineCount && (
+            <Text style={styles.truncatedIndicator}>Content is truncated</Text>
+          )}
+        </View>
+      </View>
+
+      <Text style={styles.sectionTitle}>Smart "Read More" Pattern</Text>
+      <View>
+        <NativeWindRichText
+          html="<p>This demonstrates a common UX pattern: showing a <strong>Read more</strong> button only when content is actually truncated. The button appears conditionally based on the measurement callback. This paragraph contains enough text to ensure it exceeds two lines on most screen sizes.</p>"
+          className="text-base leading-6"
+          numberOfLines={readMoreExpanded ? 0 : 2}
+          animationDuration={0.25}
+          onRichTextMeasurement={onReadMoreMeasurement}
+          testID="nw-smart-read-more"
+        />
+        {readMoreMeasurement && readMoreMeasurement.measuredLineCount > 2 && (
+          <TouchableOpacity
+            accessibilityRole="button"
+            onPress={toggleReadMore}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.readMoreButton}>
+              {readMoreExpanded ? 'Show less' : 'Read more'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <Text style={styles.nativeWindOnlyTitle}>NativeWind-Only Features</Text>
@@ -727,6 +846,11 @@ export default function App(): React.JSX.Element {
   const [lastLinkPressed, setLastLinkPressed] = useState<string | null>(null);
   const [expandedText, setExpandedText] = useState(false);
   const [numberOfLinesDemo, setNumberOfLinesDemo] = useState(2);
+  const [measurementData, setMeasurementData] =
+    useState<RichTextMeasurementData | null>(null);
+  const [readMoreExpanded, setReadMoreExpanded] = useState(false);
+  const [readMoreMeasurement, setReadMoreMeasurement] =
+    useState<RichTextMeasurementData | null>(null);
   const colorScheme = useColorScheme();
 
   const handleLinkPress = useCallback(
@@ -750,6 +874,21 @@ export default function App(): React.JSX.Element {
     });
   }, []);
 
+  const handleMeasurement = useCallback((data: RichTextMeasurementData) => {
+    setMeasurementData(data);
+  }, []);
+
+  const toggleReadMore = useCallback(() => {
+    setReadMoreExpanded((prev) => !prev);
+  }, []);
+
+  const handleReadMoreMeasurement = useCallback(
+    (data: RichTextMeasurementData) => {
+      setReadMoreMeasurement(data);
+    },
+    []
+  );
+
   return (
     <View style={styles.root}>
       <View style={styles.header}>
@@ -771,6 +910,12 @@ export default function App(): React.JSX.Element {
             toggleExpanded={toggleExpanded}
             numberOfLinesDemo={numberOfLinesDemo}
             cycleNumberOfLines={cycleNumberOfLines}
+            measurementData={measurementData}
+            onMeasurement={handleMeasurement}
+            readMoreExpanded={readMoreExpanded}
+            toggleReadMore={toggleReadMore}
+            readMoreMeasurement={readMoreMeasurement}
+            onReadMoreMeasurement={handleReadMoreMeasurement}
           />
         ) : (
           <NativeWindExamples
@@ -780,6 +925,12 @@ export default function App(): React.JSX.Element {
             numberOfLinesDemo={numberOfLinesDemo}
             cycleNumberOfLines={cycleNumberOfLines}
             colorScheme={colorScheme}
+            measurementData={measurementData}
+            onMeasurement={handleMeasurement}
+            readMoreExpanded={readMoreExpanded}
+            toggleReadMore={toggleReadMore}
+            readMoreMeasurement={readMoreMeasurement}
+            onReadMoreMeasurement={handleReadMoreMeasurement}
           />
         )}
       </ScrollView>
@@ -867,6 +1018,37 @@ const styles = StyleSheet.create({
     marginTop: 32,
     marginBottom: 4,
     textAlign: 'center',
+  },
+  measurementSectionHeader: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#9933CC',
+    marginTop: 32,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  measurementInfo: {
+    marginTop: 8,
+    padding: 12,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+  },
+  measurementText: {
+    fontSize: 14,
+    color: '#333333',
+    marginBottom: 4,
+  },
+  truncatedIndicator: {
+    fontSize: 12,
+    color: '#CC6600',
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  readMoreButton: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#007AFF',
+    marginTop: 8,
   },
   text: {
     fontSize: 16,

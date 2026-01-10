@@ -44,6 +44,10 @@ interface LinkClickListener {
   fun onLinkClick(url: String, type: DetectedContentType)
 }
 
+interface MeasurementListener {
+  fun onMeasurement(measuredLineCount: Int, visibleLineCount: Int)
+}
+
 class FabricRichTextView : AppCompatTextView {
   private val sanitizer = FabricRichSanitizer()
   private val builder = FabricRichSpannableBuilder()
@@ -58,6 +62,11 @@ class FabricRichTextView : AppCompatTextView {
   private val customTextPaint = TextPaint(TextPaint.ANTI_ALIAS_FLAG)
 
   var linkClickListener: LinkClickListener? = null
+  var measurementListener: MeasurementListener? = null
+
+  // Measurement tracking to avoid redundant events
+  private var lastReportedMeasuredLineCount: Int = -1
+  private var lastReportedVisibleLineCount: Int = -1
 
   // Detection props
   private var detectLinks: Boolean = false
@@ -368,8 +377,8 @@ class FabricRichTextView : AppCompatTextView {
   }
 
   /**
-   * Update content description to indicate truncation for TalkBack users.
-   * This appends truncation info to the resolved accessibility label.
+   * Update content description for TalkBack users.
+   * When content is truncated, only reads the visible text.
    */
   private fun updateAccessibilityForTruncation() {
     // Get the base accessibility label (resolved from C++ or fall back to plain text)
@@ -378,7 +387,7 @@ class FabricRichTextView : AppCompatTextView {
     if (numberOfLines > 0 && baseLabel.isNotEmpty() && isContentTruncated()) {
       val layout = customLayout ?: layout
       if (layout != null) {
-        // Content is truncated - only read visible text, then indicate truncation
+        // Content is truncated - only read visible text
         val visibleLines = minOf(layout.lineCount, numberOfLines)
         val visibleEndOffset = layout.getLineEnd(visibleLines - 1)
         val fullText = (stateSpannable ?: text)?.toString() ?: ""
@@ -387,8 +396,7 @@ class FabricRichTextView : AppCompatTextView {
         } else {
           fullText.trim()
         }
-        val truncatedMessage = context.resources.getString(R.string.a11y_content_truncated)
-        contentDescription = "$visibleText. $truncatedMessage."
+        contentDescription = visibleText
         logA11y("Truncated: showing $visibleEndOffset of ${fullText.length} chars")
         return
       }
@@ -765,6 +773,9 @@ class FabricRichTextView : AppCompatTextView {
         if (DEBUG_DRAW_LINE_BOUNDS) {
           drawDebugLineBoundsForLayout(canvas, cl)
         }
+
+        // Report measurements for state-based mode
+        reportLineMeasurementsIfNeeded(cl)
         return
       }
     }
@@ -779,6 +790,50 @@ class FabricRichTextView : AppCompatTextView {
 
     if (DEBUG_DRAW_LINE_BOUNDS) {
       drawDebugLineBounds(canvas)
+    }
+
+    // Report measurements for non-state mode
+    reportLineMeasurementsIfNeeded(layout)
+  }
+
+  /**
+   * Computes line counts and notifies listener if values have changed.
+   * - measuredLineCount: Total lines the text would occupy without truncation
+   * - visibleLineCount: Actual lines visible (limited by numberOfLines)
+   */
+  private fun reportLineMeasurementsIfNeeded(textLayout: Layout?) {
+    if (textLayout == null || measurementListener == null) {
+      return
+    }
+
+    val spannable = stateSpannable ?: text as? Spannable ?: return
+    if (spannable.isEmpty()) {
+      return
+    }
+
+    // Get visible line count from the current layout
+    val visibleLineCount = textLayout.lineCount
+
+    // Compute measured line count (total lines without numberOfLines constraint)
+    val measuredLineCount = if (numberOfLines > 0 && visibleLineCount == numberOfLines) {
+      // There might be more lines - create an unconstrained layout to check
+      val unconstrainedLayout = StaticLayout.Builder
+        .obtain(spannable, 0, spannable.length, customTextPaint, textLayout.width)
+        .setAlignment(textLayout.alignment)
+        .setLineSpacing(0f, 1f)
+        .setIncludePad(includeFontPadding)
+        .build()
+      unconstrainedLayout.lineCount
+    } else {
+      visibleLineCount
+    }
+
+    // Only notify if values changed
+    if (measuredLineCount != lastReportedMeasuredLineCount ||
+        visibleLineCount != lastReportedVisibleLineCount) {
+      lastReportedMeasuredLineCount = measuredLineCount
+      lastReportedVisibleLineCount = visibleLineCount
+      measurementListener?.onMeasurement(measuredLineCount, visibleLineCount)
     }
   }
 

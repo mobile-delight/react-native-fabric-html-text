@@ -21,6 +21,13 @@ interface LinkFocusChangeNativeEvent {
   };
 }
 
+interface RichTextMeasurementNativeEvent {
+  nativeEvent: {
+    measuredLineCount: number;
+    visibleLineCount: number;
+  };
+}
+
 export function RichTextNative(props: RichTextNativeProps): ReactElement {
   const {
     html,
@@ -28,6 +35,7 @@ export function RichTextNative(props: RichTextNativeProps): ReactElement {
     testID,
     onLinkPress,
     onLinkFocusChange,
+    onRichTextMeasurement,
     tagStyles,
     className,
     detectLinks,
@@ -64,6 +72,19 @@ export function RichTextNative(props: RichTextNativeProps): ReactElement {
       }
     },
     [onLinkFocusChange]
+  );
+
+  const handleRichTextMeasurement = useCallback(
+    (event: RichTextMeasurementNativeEvent): void => {
+      if (onRichTextMeasurement) {
+        const { measuredLineCount, visibleLineCount } = event.nativeEvent;
+        onRichTextMeasurement({
+          measuredLineCount,
+          visibleLineCount,
+        });
+      }
+    },
+    [onRichTextMeasurement]
   );
 
   const serializedTagStyles = useMemo((): string | undefined => {
@@ -119,6 +140,7 @@ export function RichTextNative(props: RichTextNativeProps): ReactElement {
       testID={testID}
       onLinkPress={handleLinkPress}
       onLinkFocusChange={handleLinkFocusChange}
+      onRichTextMeasurement={handleRichTextMeasurement}
       tagStyles={serializedTagStyles}
       className={className}
       fontSize={fontSize}

@@ -14,7 +14,4 @@
     <string name="a11y_italic">مائل</string>
     <string name="a11y_underline">ضع خطاً تحته</string>
     <string name="a11y_strikethrough">شطب في المنتصف</string>
-
-    <!-- Accessibility: Truncation indicator -->
-    <string name="a11y_content_truncated">المحتوى مختصر</string>
 </resources>

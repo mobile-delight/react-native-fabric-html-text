@@ -20,6 +20,14 @@ typedef NS_ENUM(NSInteger, HTMLDetectedContentType) {
  * @param type The type of content that was detected
  */
 - (void)coreTextView:(id)view didTapLinkWithURL:(NSURL *)url type:(HTMLDetectedContentType)type;
+
+/**
+ * Called when the text has been measured and laid out.
+ * @param view The view that performed the measurement
+ * @param measuredLineCount Total number of lines the text would occupy without truncation
+ * @param visibleLineCount Number of lines actually visible (after numberOfLines truncation)
+ */
+- (void)coreTextView:(id)view didMeasureWithLineCount:(NSInteger)measuredLineCount visibleLineCount:(NSInteger)visibleLineCount;
 @end
 
 /**
