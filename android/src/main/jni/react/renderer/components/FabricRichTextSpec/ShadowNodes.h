@@ -72,10 +72,10 @@ class FabricRichTextShadowNode final : public ConcreteViewShadowNode<
 
   // Mutex protecting mutable members from concurrent access.
   // measureContent() may be called concurrently by Fabric's layout system.
-  mutable std::mutex _mutex;
-  mutable AttributedString _attributedString;
-  mutable std::vector<std::string> _linkUrls;
-  mutable std::string _accessibilityLabel;
+  mutable std::mutex _mutex{};
+  mutable AttributedString _attributedString{};
+  mutable std::vector<std::string> _linkUrls{};
+  mutable std::string _accessibilityLabel{};
 };
 
 } // namespace facebook::react

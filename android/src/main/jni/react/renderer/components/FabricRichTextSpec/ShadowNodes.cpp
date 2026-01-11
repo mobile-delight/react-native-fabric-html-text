@@ -37,10 +37,11 @@
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, HTML_LOG_TAG, __VA_ARGS__)
 
 #if COMPARE_PARSERS
-// FNV-1a hash helper for HTML digests (lightweight implementation for logging correlation)
-static std::string computeSHA256Digest(const std::string& data) {
-  // Simplified hash for logging correlation - use a real crypto library for production
-  // For now, use a basic hash function (FNV-1a) to avoid adding external dependencies
+// FNV-1a hash for logging correlation (non-cryptographic)
+// Used to correlate parser comparison logs without exposing raw HTML content
+static std::string computeFNV1aDigest(const std::string& data) {
+  // FNV-1a (Fowler-Noll-Vo) hash function - fast, non-cryptographic
+  // Not suitable for security purposes; used only for debug log correlation
   uint64_t hash = 14695981039346656037ULL;
   for (unsigned char c : data) {
     hash ^= c;
@@ -57,7 +58,7 @@ static void compareParseResults(
     const std::string& html) {
 
   bool hasDifferences = false;
-  std::string htmlDigest = computeSHA256Digest(html);
+  std::string htmlDigest = computeFNV1aDigest(html);
 
   // Compare fragment counts
   auto frags1 = result1.attributedString.getFragments();

@@ -20,11 +20,32 @@ node node_modules/react-native/scripts/generate-codegen-artifacts.js \
   --outputPath android/build/generated/source/codegen
 
 # Copy headers to expected location (codegen may output to nested path)
-if [ -d "android/build/generated/source/codegen/android/app/build/generated/source/codegen/jni" ]; then
+CODEGEN_SOURCE="android/build/generated/source/codegen/android/app/build/generated/source/codegen/jni"
+CODEGEN_DEST="android/build/generated/source/codegen/jni"
+
+if [ -d "$CODEGEN_SOURCE" ]; then
+  # Verify source directory is non-empty before copying
+  if [ -z "$(ls -A "$CODEGEN_SOURCE")" ]; then
+    echo "ERROR: Codegen source directory is empty: $CODEGEN_SOURCE"
+    exit 1
+  fi
+
   echo "Copying codegen headers to correct location..."
-  mkdir -p android/build/generated/source/codegen/jni
-  cp -r android/build/generated/source/codegen/android/app/build/generated/source/codegen/jni/* \
-        android/build/generated/source/codegen/jni/
+  mkdir -p "$CODEGEN_DEST"
+
+  # Use -P to avoid following symlinks
+  if ! cp -rP "$CODEGEN_SOURCE"/* "$CODEGEN_DEST"/; then
+    echo "ERROR: Failed to copy codegen headers from $CODEGEN_SOURCE to $CODEGEN_DEST"
+    exit 1
+  fi
+
+  # Validate that files were actually copied
+  if [ -z "$(ls -A "$CODEGEN_DEST")" ]; then
+    echo "ERROR: Codegen destination is empty after copy: $CODEGEN_DEST"
+    exit 1
+  fi
+
+  echo "Successfully copied codegen headers"
 fi
 
 echo ""

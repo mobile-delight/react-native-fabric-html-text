@@ -74,8 +74,10 @@ int32_t FabricRichParserLibxml2::parseHexColor(const std::string& colorStr) {
     return 0;
   }
   try {
-    unsigned int rgb = std::stoul(hex, nullptr, 16);
-    return static_cast<int32_t>(0xFF000000 | rgb);
+    // Parse as unsigned to avoid undefined behavior with bitwise operations
+    uint32_t rgb = static_cast<uint32_t>(std::stoul(hex, nullptr, 16));
+    uint32_t combined = 0xFF000000u | rgb;
+    return static_cast<int32_t>(combined);
   } catch (...) {
     return 0;
   }

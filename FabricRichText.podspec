@@ -11,7 +11,7 @@ Pod::Spec.new do |s|
   s.authors      = package["author"]
 
   s.platforms    = { :ios => '15.1' }
-  s.source       = { :git => "https://github.com/michael-fay/react-native-fabric-rich-text.git", :tag => s.version.to_s }
+  s.source       = { :git => "https://github.com/mobile-delight/react-native-fabric-rich-text.git", :tag => s.version.to_s }
 
   s.source_files = "ios/**/*.{h,m,mm,swift,cpp}", "cpp/**/*.{h,cpp}"
   s.exclude_files = [
@@ -27,9 +27,9 @@ Pod::Spec.new do |s|
   s.public_header_files = "ios/FabricRichCoreTextView.h"
 
   # Localized accessibility strings
-  # Use explicit file pattern to ensure Localizable.strings files are included
+  # Use explicit file pattern to ensure only .strings files are included
   s.resource_bundles = {
-    'FabricRichTextResources' => ['ios/Resources/**/*.lproj/*']
+    'FabricRichTextResources' => ['ios/Resources/**/*.lproj/*.strings']
   }
 
   s.frameworks = "CoreText", "CoreFoundation"

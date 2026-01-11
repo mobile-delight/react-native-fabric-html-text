@@ -63,9 +63,9 @@ describe('Styling Page - Integration', () => {
     render(<StylingPage />);
 
     const htmlTextComponents = screen.getAllByTestId('html-text');
-    // Should have at least the 8 main styling demos
-    // (container queries may vary based on implementation)
-    expect(htmlTextComponents.length).toBeGreaterThanOrEqual(8);
+    // 8 styling demos + 7 container query RichText instances:
+    // full width (1), half width (1), side-by-side (2), named (1), nested (2)
+    expect(htmlTextComponents.length).toBe(15);
   });
 
   it('basic className demo has text-blue-600 class', () => {
