@@ -7,10 +7,8 @@
 #import "FabricRichFragmentParser.h"
 #import <CoreText/CoreText.h>
 
-#if __has_include(<FabricHtmlText/FabricHtmlText-Swift.h>)
-#import <FabricHtmlText/FabricHtmlText-Swift.h>
-#elif __has_include("NativeTestHarness-Swift.h")
-#import "NativeTestHarness-Swift.h"
+#if __has_include(<FabricRichText/FabricRichText-Swift.h>)
+#import <FabricRichText/FabricRichText-Swift.h>
 #else
 #import "FabricRichText-Swift.h"
 #endif

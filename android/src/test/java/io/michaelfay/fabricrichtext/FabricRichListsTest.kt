@@ -12,7 +12,7 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE)
-class HTMLListsTest {
+class RichListsTest {
 
     private lateinit var builder: FabricRichSpannableBuilder
 

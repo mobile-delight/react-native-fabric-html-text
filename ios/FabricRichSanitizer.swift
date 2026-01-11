@@ -1,5 +1,6 @@
 import Foundation
 import SwiftSoup
+import OSLog
 
 /// HTML Sanitizer using SwiftSoup.
 ///
@@ -21,6 +22,11 @@ import SwiftSoup
    * Allowed URL protocols - uses FabricGeneratedConstants (from src/core/constants.ts).
    */
   private static var allowedProtocols: [String] { FabricGeneratedConstants.allowedProtocols }
+
+  /**
+   * Logger for sanitizer errors and warnings
+   */
+  private static let logger = Logger(subsystem: "com.fabricrichtext.sanitizer", category: "HTMLSanitizer")
 
   /**
    * Custom allowlist configured with our security policy.
@@ -59,9 +65,11 @@ import SwiftSoup
       }
     } catch {
       // Initialization errors should not occur with valid config
-      // Log error in debug builds
+      // Log error in all builds with structured logging
       #if DEBUG
-        print("FabricRichSanitizer: Failed to configure allowlist: \(error)")
+        Self.logger.error("Failed to configure allowlist: \(error.localizedDescription, privacy: .public)")
+      #else
+        Self.logger.error("Failed to configure allowlist")
       #endif
     }
 
@@ -98,7 +106,12 @@ import SwiftSoup
       return clean
     } catch {
       // Log in all builds - silent failures cause debugging nightmares in production
-      NSLog("FabricRichSanitizer: Failed to sanitize HTML: %@", String(describing: error))
+      // Only expose detailed error in DEBUG builds to avoid leaking attacker-controlled data
+      #if DEBUG
+        Self.logger.error("Failed to sanitize HTML: \(error.localizedDescription, privacy: .public)")
+      #else
+        Self.logger.error("Failed to sanitize HTML")
+      #endif
       return ""
     }
   }

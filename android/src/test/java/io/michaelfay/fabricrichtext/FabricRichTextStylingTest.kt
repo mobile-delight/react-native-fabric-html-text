@@ -16,7 +16,7 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE)
-class HTMLStylingTest {
+class RichTextStylingTest {
     private lateinit var builder: FabricRichSpannableBuilder
 
     @Before

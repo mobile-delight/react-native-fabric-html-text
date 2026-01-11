@@ -1122,7 +1122,7 @@ private class LinkClickMovementMethod(
         val href = hrefLinks[0].href
 
         // Defense-in-depth: Validate URL scheme before invoking callback
-        if (!FabricHTMLTextView.isSchemeAllowed(href)) {
+        if (!FabricRichTextView.isSchemeAllowed(href)) {
           return true  // Consume the event but don't invoke callback
         }
 
@@ -1136,7 +1136,7 @@ private class LinkClickMovementMethod(
         val url = urlSpans[0].url
 
         // Defense-in-depth: Validate URL scheme before invoking callback
-        if (!FabricHTMLTextView.isSchemeAllowed(url)) {
+        if (!FabricRichTextView.isSchemeAllowed(url)) {
           return true  // Consume the event but don't invoke callback
         }
 

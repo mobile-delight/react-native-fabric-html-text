@@ -211,7 +211,7 @@ describe('RichText.web Accessibility', () => {
   describe('Dangerous URL protocol sanitization', () => {
     it('should strip or block javascript: protocol links', () => {
       const { container } = render(
-        <HTMLText html='<p><a href="javascript:alert(1)">XSS Link</a></p>' />
+        <RichText html='<p><a href="javascript:alert(1)">XSS Link</a></p>' />
       );
 
       const link = container.querySelector('a');
@@ -227,7 +227,7 @@ describe('RichText.web Accessibility', () => {
 
     it('should strip or block data: protocol links', () => {
       const { container } = render(
-        <HTMLText html='<p><a href="data:text/html,<script>alert(1)</script>">Data Link</a></p>' />
+        <RichText html='<p><a href="data:text/html,<script>alert(1)</script>">Data Link</a></p>' />
       );
 
       const link = container.querySelector('a');
@@ -242,7 +242,7 @@ describe('RichText.web Accessibility', () => {
 
     it('should strip or block vbscript: protocol links', () => {
       const { container } = render(
-        <HTMLText html='<p><a href="vbscript:msgbox(1)">VBScript Link</a></p>' />
+        <RichText html='<p><a href="vbscript:msgbox(1)">VBScript Link</a></p>' />
       );
 
       const link = container.querySelector('a');
@@ -257,7 +257,7 @@ describe('RichText.web Accessibility', () => {
 
     it('should allow safe protocols (http, https, mailto, tel)', () => {
       const { container } = render(
-        <HTMLText
+        <RichText
           html={`
           <p>
             <a href="https://example.com">HTTPS</a>
@@ -314,7 +314,7 @@ describe('RichText.web Accessibility', () => {
 
     it('should hide truncated links from screen readers', () => {
       const { container } = render(
-        <HTMLText
+        <RichText
           html='<p><a href="https://a.com">First Link That Is Very Long</a> <a href="https://b.com">Second Link That Is Also Long</a> <a href="https://c.com">Third Link</a></p>'
           numberOfLines={1}
         />

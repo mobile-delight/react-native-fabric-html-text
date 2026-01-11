@@ -14,6 +14,8 @@
 
 #include <react/renderer/components/view/ViewShadowNode.h>
 #include <android/log.h>
+#include <sstream>
+#include <iomanip>
 
 // ============================================================================
 // Parser Selection Flags
@@ -35,60 +37,70 @@
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, HTML_LOG_TAG, __VA_ARGS__)
 
 #if COMPARE_PARSERS
+// FNV-1a hash helper for HTML digests (lightweight implementation for logging correlation)
+static std::string computeSHA256Digest(const std::string& data) {
+  // Simplified hash for logging correlation - use a real crypto library for production
+  // For now, use a basic hash function (FNV-1a) to avoid adding external dependencies
+  uint64_t hash = 14695981039346656037ULL;
+  for (unsigned char c : data) {
+    hash ^= c;
+    hash *= 1099511628211ULL;
+  }
+  std::stringstream ss;
+  ss << std::hex << std::setw(16) << std::setfill('0') << hash;
+  return ss.str();
+}
+
 static void compareParseResults(
     const facebook::react::FabricRichParser::ParseResult& result1,
     const facebook::react::FabricRichParser::ParseResult& result2,
     const std::string& html) {
 
   bool hasDifferences = false;
+  std::string htmlDigest = computeSHA256Digest(html);
 
   // Compare fragment counts
   auto frags1 = result1.attributedString.getFragments();
   auto frags2 = result2.attributedString.getFragments();
 
   if (frags1.size() != frags2.size()) {
-    LOGE("PARSER_COMPARE: Fragment count mismatch - original: %zu, libxml2: %zu",
-         frags1.size(), frags2.size());
+    LOGE("PARSER_COMPARE: Fragment count mismatch - original: %zu, libxml2: %zu (digest: %s)",
+         frags1.size(), frags2.size(), htmlDigest.c_str());
     hasDifferences = true;
   }
 
-  // Compare fragment content
+  // Compare fragment content (count differences only, no raw content)
   size_t minFrags = std::min(frags1.size(), frags2.size());
   for (size_t i = 0; i < minFrags; ++i) {
     if (frags1[i].string != frags2[i].string) {
-      LOGE("PARSER_COMPARE: Fragment %zu text differs:", i);
-      LOGE("  original: '%s'", frags1[i].string.substr(0, 50).c_str());
-      LOGE("  libxml2:  '%s'", frags2[i].string.substr(0, 50).c_str());
+      LOGE("PARSER_COMPARE: Fragment %zu text differs - original length: %zu, libxml2 length: %zu (digest: %s)",
+           i, frags1[i].string.length(), frags2[i].string.length(), htmlDigest.c_str());
       hasDifferences = true;
     }
   }
 
-  // Compare link URLs
+  // Compare link URLs (count only, no raw URLs)
   if (result1.linkUrls.size() != result2.linkUrls.size()) {
-    LOGE("PARSER_COMPARE: Link URL count mismatch - original: %zu, libxml2: %zu",
-         result1.linkUrls.size(), result2.linkUrls.size());
+    LOGE("PARSER_COMPARE: Link URL count mismatch - original: %zu, libxml2: %zu (digest: %s)",
+         result1.linkUrls.size(), result2.linkUrls.size(), htmlDigest.c_str());
     hasDifferences = true;
   } else {
     for (size_t i = 0; i < result1.linkUrls.size(); ++i) {
       if (result1.linkUrls[i] != result2.linkUrls[i]) {
-        LOGE("PARSER_COMPARE: Link URL mismatch at index %zu", i);
+        LOGE("PARSER_COMPARE: Link URL mismatch at index %zu (digest: %s)", i, htmlDigest.c_str());
         hasDifferences = true;
       }
     }
   }
 
-  // Compare accessibility labels
+  // Compare accessibility labels (lengths only, no raw content)
   if (result1.accessibilityLabel != result2.accessibilityLabel) {
-    LOGE("PARSER_COMPARE: Accessibility label mismatch:");
-    LOGE("  original len: %zu, libxml2 len: %zu",
-         result1.accessibilityLabel.size(), result2.accessibilityLabel.size());
-    // Show first difference
+    LOGE("PARSER_COMPARE: Accessibility label mismatch - original len: %zu, libxml2 len: %zu (digest: %s)",
+         result1.accessibilityLabel.size(), result2.accessibilityLabel.size(), htmlDigest.c_str());
+    // Report position of first difference only, no character content
     for (size_t i = 0; i < std::min(result1.accessibilityLabel.size(), result2.accessibilityLabel.size()); ++i) {
       if (result1.accessibilityLabel[i] != result2.accessibilityLabel[i]) {
-        LOGE("  first diff at pos %zu: orig='%c'(0x%02x) vs libxml2='%c'(0x%02x)",
-             i,
-             result1.accessibilityLabel[i], (unsigned char)result1.accessibilityLabel[i],
-             result2.accessibilityLabel[i], (unsigned char)result2.accessibilityLabel[i]);
+        LOGE("  first diff at position %zu (digest: %s)", i, htmlDigest.c_str());
         break;
       }
     }
@@ -96,7 +108,7 @@ static void compareParseResults(
   }
 
   if (!hasDifferences) {
-    LOGD("PARSER_COMPARE: Results match for HTML length %zu", html.size());
+    LOGD("PARSER_COMPARE: Results match (digest: %s)", htmlDigest.c_str());
   }
 }
 #endif

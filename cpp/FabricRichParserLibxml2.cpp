@@ -3,6 +3,11 @@
  *
  * libxml2 SAX-based HTML parser implementation.
  * Provides identical output to FabricRichParser for side-by-side comparison.
+ *
+ * TODO(tech-debt): This file intentionally duplicates logic from FabricRichParser for
+ * validation purposes. After parity is confirmed via COMPARE_PARSERS testing, consolidate
+ * the implementations by removing one and merging shared constants/parsing logic into a
+ * single module. Track consolidation in issue #TBD.
  */
 
 #include "FabricRichParserLibxml2.h"
@@ -227,13 +232,25 @@ bool FabricRichParserLibxml2::isAllowedUrlScheme(const std::string& url) {
   if (start != std::string::npos) {
     lowerUrl = lowerUrl.substr(start);
   }
-  // Block dangerous schemes
-  if (lowerUrl.rfind("javascript:", 0) == 0 ||
-      lowerUrl.rfind("vbscript:", 0) == 0 ||
-      lowerUrl.rfind("data:", 0) == 0) {
-    return false;
+
+  // Extract scheme (everything before first ':')
+  size_t colonPos = lowerUrl.find(':');
+  std::string scheme;
+
+  if (colonPos == std::string::npos) {
+    // No colon found - treat as relative URL (allowed)
+    return true;
   }
-  return true;
+
+  scheme = lowerUrl.substr(0, colonPos);
+
+  // Allowlist of safe URL schemes
+  static const std::unordered_set<std::string> allowedSchemes = {
+    "http", "https", "mailto", "tel"
+  };
+
+  // Only allow if scheme is in the allowlist (or empty for relative URLs)
+  return scheme.empty() || allowedSchemes.count(scheme) > 0;
 }
 
 std::string FabricRichParserLibxml2::extractAttribute(const xmlChar** attrs, const char* name) {
@@ -241,16 +258,18 @@ std::string FabricRichParserLibxml2::extractAttribute(const xmlChar** attrs, con
     return "";
   }
   for (int i = 0; attrs[i] != nullptr; i += 2) {
-    if (attrs[i + 1] != nullptr) {
-      const char* attrName = reinterpret_cast<const char*>(attrs[i]);
-      // Case-insensitive comparison
-      std::string lowerAttr = attrName;
-      for (char& c : lowerAttr) {
-        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-      }
-      if (lowerAttr == name) {
-        return std::string(reinterpret_cast<const char*>(attrs[i + 1]));
-      }
+    // Explicit null checks for both attrs[i] and attrs[i+1] before dereferencing
+    if (attrs[i] == nullptr || attrs[i + 1] == nullptr) {
+      continue;
+    }
+    const char* attrName = reinterpret_cast<const char*>(attrs[i]);
+    // Case-insensitive comparison
+    std::string lowerAttr = attrName;
+    for (char& c : lowerAttr) {
+      c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+    if (lowerAttr == name) {
+      return std::string(reinterpret_cast<const char*>(attrs[i + 1]));
     }
   }
   return "";
@@ -900,11 +919,13 @@ FabricRichParser::ParseResult FabricRichParserLibxml2::parseHtmlWithLinkUrls(
       segmentColor = DEFAULT_LINK_COLOR;
     }
     if (segmentColor != 0) {
+      // Convert to unsigned to avoid implementation-defined behavior with signed shifts
+      uint32_t unsignedColor = static_cast<uint32_t>(segmentColor);
       textAttributes.foregroundColor = colorFromComponents({
-          static_cast<float>((segmentColor >> 16) & 0xFF) / 255.0f,
-          static_cast<float>((segmentColor >> 8) & 0xFF) / 255.0f,
-          static_cast<float>(segmentColor & 0xFF) / 255.0f,
-          static_cast<float>((segmentColor >> 24) & 0xFF) / 255.0f
+          static_cast<float>((unsignedColor >> 16) & 0xFF) / 255.0f,
+          static_cast<float>((unsignedColor >> 8) & 0xFF) / 255.0f,
+          static_cast<float>(unsignedColor & 0xFF) / 255.0f,
+          static_cast<float>((unsignedColor >> 24) & 0xFF) / 255.0f
       });
     }
 

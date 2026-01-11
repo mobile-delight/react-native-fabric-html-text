@@ -6,7 +6,7 @@ A comprehensive technical reference for the `react-native-fabric-rich-text` libr
 
 ## Table of Contents
 
-1. [Core RichText Component](#1-core-htmltext-component)
+1. [Core RichText Component](#1-core-richtext-component)
 2. [HTML Parsing & Sanitization](#2-html-parsing--sanitization)
 3. [Fabric/TurboModule Architecture](#3-fabricturbomodule-architecture)
 4. [C++ Shared Layer](#4-c-shared-layer)
