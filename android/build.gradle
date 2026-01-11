@@ -115,10 +115,10 @@ dependencies {
 
   // Instrumentation tests with ATF (Accessibility Testing Framework)
   // Run with: ./gradlew connectedAndroidTest
-  androidTestImplementation "androidx.test.ext:junit:1.2.1"
+  androidTestImplementation "androidx.test.ext:junit:1.3.0"
   androidTestImplementation "androidx.test:runner:1.6.2"
-  androidTestImplementation "androidx.test.espresso:espresso-core:3.6.1"
-  androidTestImplementation "androidx.test.espresso:espresso-accessibility:3.6.1"
+  androidTestImplementation "androidx.test.espresso:espresso-core:3.7.0"
+  androidTestImplementation "androidx.test.espresso:espresso-accessibility:3.7.0"
 }
 
 // Native C++ build configuration is handled by jni/CMakeLists.txt

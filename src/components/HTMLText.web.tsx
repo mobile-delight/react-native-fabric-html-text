@@ -26,52 +26,6 @@ let uniqueIdCounter = 0;
  * for API compatibility but have limited functionality on web. Browsers handle
  * URL detection natively, and phone/email detection is not supported.
  */
-/**
- * Counts the number of anchor tags in an HTML string.
- */
-function countLinks(htmlString: string): number {
-  const matches = htmlString.match(/<a\s[^>]*href\s*=/gi);
-  return matches ? matches.length : 0;
-}
-
-/**
- * Adds aria-describedby attributes to links with position info.
- * Returns the modified HTML and the hidden description elements.
- */
-function addLinkPositionInfo(
-  htmlString: string,
-  linkCount: number,
-  instanceId: string
-): { processedHtml: string; descriptionElements: string } {
-  if (linkCount === 0) {
-    return { processedHtml: htmlString, descriptionElements: '' };
-  }
-
-  let linkIndex = 0;
-  const descIds: string[] = [];
-
-  // Add aria-describedby to each link by matching the opening <a tag
-  // Use a simpler pattern that inserts the attribute right after <a
-  const processedHtml = htmlString.replace(/<a\s/gi, () => {
-    linkIndex++;
-    const descId = `${instanceId}-link-desc-${linkIndex}`;
-    descIds.push(descId);
-    return `<a aria-describedby="${descId}" `;
-  });
-
-  // Create hidden description elements for screen readers
-  const descriptionElements = descIds
-    .map(
-      (id, index) =>
-        `<span id="${id}" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;">Link ${
-          index + 1
-        } of ${linkCount}</span>`
-    )
-    .join('');
-
-  return { processedHtml, descriptionElements };
-}
-
 export default function HTMLText({
   html,
   style,
@@ -108,6 +62,59 @@ export default function HTMLText({
     }
   }, [detectLinks, detectPhoneNumbers, detectEmails]);
 
+  // Post-render DOM manipulation for accessibility and truncation
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const container = containerRef.current;
+    const links = container.querySelectorAll('a');
+
+    // Add position info to links for screen readers
+    if (links.length > 0) {
+      links.forEach((link, index) => {
+        const descId = `${instanceId}-link-desc-${index + 1}`;
+
+        // Add aria-describedby to link
+        link.setAttribute('aria-describedby', descId);
+
+        // Create hidden description element
+        const descSpan = document.createElement('span');
+        descSpan.id = descId;
+        descSpan.style.cssText =
+          'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;';
+        descSpan.textContent = `Link ${index + 1} of ${links.length}`;
+
+        // Append to container
+        container.appendChild(descSpan);
+      });
+    }
+
+    // Apply line-clamp styles for truncation via className
+    if (numberOfLines && numberOfLines > 0) {
+      const blockElements = container.querySelectorAll(
+        'p, div, h1, h2, h3, h4, h5, h6, blockquote, li, ul, ol'
+      );
+      blockElements.forEach((element) => {
+        const htmlElement = element as HTMLElement;
+        htmlElement.style.display = '-webkit-box';
+        htmlElement.style.webkitLineClamp = String(numberOfLines);
+        htmlElement.style.webkitBoxOrient = 'vertical';
+        htmlElement.style.overflow = 'hidden';
+        htmlElement.style.margin = '0';
+        htmlElement.style.padding = '0';
+      });
+    }
+
+    // Cleanup function
+    return () => {
+      // Remove added description elements
+      const descElements = container.querySelectorAll(
+        `[id^="${instanceId}-link-desc-"]`
+      );
+      descElements.forEach((el) => el.remove());
+    };
+  }, [html, numberOfLines, instanceId]);
+
   // Handle link clicks if onLinkPress is provided
   const handleClick = useCallback(
     (event: React.MouseEvent<HTMLDivElement>): void => {
@@ -134,53 +141,28 @@ export default function HTMLText({
     return null;
   }
 
+  // Sanitize HTML - this is the ONLY string manipulation we do
+  // All post-processing (link annotations, truncation) happens via DOM APIs in useEffect
   const sanitizedHtml = sanitize(trimmedHtml);
   const cssStyle = convertStyle(style);
 
-  // Count links in the sanitized HTML for accessibility
-  const linkCount = countLinks(sanitizedHtml);
+  // Count links for ARIA attributes
+  const linkCount = (sanitizedHtml.match(/<a\s[^>]*href\s*=/gi) || []).length;
 
-  // Apply CSS line-clamp for truncation when numberOfLines > 0
-  // The line-clamp styles must be applied directly to the text-containing elements,
-  // not to a wrapper, for proper ellipsis behavior.
+  // Apply CSS for truncation container
   const isTruncated = numberOfLines && numberOfLines > 0;
   const truncationStyle: React.CSSProperties = isTruncated
     ? { overflow: 'hidden', position: 'relative' as const }
     : { position: 'relative' as const };
 
-  // Apply writing direction - 'auto' inherits from parent/system
-  // Using CSS logical property 'start' which automatically adapts to direction:
-  // - LTR: start = left
-  // - RTL: start = right
+  // Apply writing direction
   const directionStyle: React.CSSProperties =
     writingDirection === 'auto'
-      ? {} // Inherit from parent
+      ? {}
       : {
           direction: writingDirection,
-          // Use CSS logical property for RTL-aware alignment
           textAlign: 'start',
         };
-
-  // When truncating, apply line-clamp styles directly to block elements in the HTML.
-  // This ensures the ellipsis appears correctly at the truncation point.
-  const lineClampStyles = `display:-webkit-box;-webkit-line-clamp:${numberOfLines};-webkit-box-orient:vertical;overflow:hidden;margin:0;padding:0;`;
-  let processedHtml = isTruncated
-    ? sanitizedHtml.replace(
-        /<(p|div|h[1-6]|blockquote|li|ul|ol)(\s|>)/gi,
-        `<$1 style="${lineClampStyles}"$2`
-      )
-    : sanitizedHtml;
-
-  // Add position info to links for screen readers (WCAG 2.4.4 Link Purpose)
-  let descriptionElements = '';
-  if (linkCount > 0) {
-    const result = addLinkPositionInfo(processedHtml, linkCount, instanceId);
-    processedHtml = result.processedHtml;
-    descriptionElements = result.descriptionElements;
-  }
-
-  // Combine content with hidden description elements
-  const finalHtml = processedHtml + descriptionElements;
 
   // Build ARIA attributes for screen reader navigation
   const ariaLabel =
@@ -202,8 +184,10 @@ export default function HTMLText({
       tabIndex={0}
       aria-label={ariaLabel}
       role={role}
-      // nosemgrep: no-dangerous-innerhtml-without-sanitization - finalHtml is sanitized via DOMPurify (sanitizedHtml on line 125) with only safe accessibility attributes added
-      dangerouslySetInnerHTML={{ __html: finalHtml }}
+      // SAFETY: sanitizedHtml is sanitized via DOMPurify (sanitize() function imported from sanitize.web).
+      // All post-processing (accessibility annotations, truncation styles) is performed via DOM APIs
+      // in the useEffect hook above, not via string manipulation. This ensures XSS protection.
+      dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
     />
   );
 }

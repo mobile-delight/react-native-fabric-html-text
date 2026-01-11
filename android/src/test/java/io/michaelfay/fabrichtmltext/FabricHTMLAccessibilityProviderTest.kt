@@ -267,7 +267,9 @@ class FabricHTMLAccessibilityProviderTest {
 
     private fun setHtmlAndLayout(html: String) {
         val spannable = builder.buildSpannable(html)
-        // Set text to create TextView's internal layout (needed for accessibility bounds)
+        // Set text first to create TextView's internal layout (needed for accessibility bounds)
+        // Then call setSpannableFromState to trigger custom view logic
+        // Note: This duplication is required in tests to properly initialize StaticLayout
         textView.text = spannable
         textView.setSpannableFromState(spannable)
         textView.measure(

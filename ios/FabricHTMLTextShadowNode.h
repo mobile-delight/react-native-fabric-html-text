@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mutex>
 #include <react/renderer/components/FabricHTMLTextSpec/EventEmitters.h>
 #include <react/renderer/components/FabricHTMLTextSpec/Props.h>
 #include <react/renderer/components/view/ConcreteViewShadowNode.h>
@@ -93,6 +94,7 @@ class FabricHTMLTextShadowNode final : public ConcreteViewShadowNode<
    */
   static std::string stripHtmlTags(const std::string& html);
 
+  mutable std::mutex _mutex;
   mutable AttributedString _attributedString;
   mutable std::vector<std::string> _linkUrls;
   mutable std::string _accessibilityLabel;

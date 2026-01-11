@@ -72,9 +72,9 @@ class FabricHTMLTextView : AppCompatTextView {
     private val DEBUG_DRAW_LINE_BOUNDS = BuildConfig.DEBUG && false
     // To enable debug logging, set DEBUG_LOG = true AND build in debug mode
     private val DEBUG_LOG = BuildConfig.DEBUG && false
-    // Accessibility debug logging - set to false for production
+    // Accessibility debug logging - disabled in production
     private const val A11Y_TAG = "A11Y_FHTMLTV"
-    private const val A11Y_DEBUG = true
+    private val A11Y_DEBUG = BuildConfig.DEBUG
   }
 
   // Text style props from React - synchronized with C++ measurement
@@ -954,7 +954,7 @@ class FabricHTMLTextView : AppCompatTextView {
 
     val range = linkRanges[index]
     val linkStart = range.first
-    val linkEnd = range.last + 1 // IntRange is exclusive end, but we need inclusive
+    val linkEnd = range.last + 1 // IntRange.last is inclusive; +1 converts to exclusive end for offset operations
 
     // Get the lines containing this link
     val startLine = textLayout.getLineForOffset(linkStart)

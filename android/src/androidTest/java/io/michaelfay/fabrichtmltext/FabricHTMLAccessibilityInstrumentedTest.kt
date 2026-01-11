@@ -1,13 +1,10 @@
 package io.michaelfay.fabrichtmltext
 
-import android.view.accessibility.AccessibilityNodeInfo
 import androidx.test.espresso.accessibility.AccessibilityChecks
-import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
 import com.google.android.apps.common.testing.accessibility.framework.AccessibilityCheckResult.AccessibilityCheckResultType
 import org.junit.Before
-import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -63,10 +60,30 @@ class FabricHTMLAccessibilityInstrumentedTest {
     // val activityRule = ActivityScenarioRule(TestActivity::class.java)
 
     /**
-     * Placeholder test - implement when integrating with example app.
+     * TODO: Implement real accessibility tests when integrating with example app.
      *
-     * Example test structure:
+     * Manual Test Steps:
+     * 1. Create an Activity with FabricHTMLTextView containing links
+     * 2. Enable TalkBack on device/emulator
+     * 3. Navigate to the view and verify:
+     *    - Each link is individually focusable
+     *    - Link position is announced ("Link 1 of 3")
+     *    - Link type is announced ("web link", "phone number", "email address")
+     *    - Double-tap activates the link
+     *    - Touch targets are at least 48dp (WCAG 2.5.5)
+     *
+     * Automated Test Acceptance Criteria:
+     * - Use ActivityScenarioRule to launch test activity
+     * - Use Espresso with onView(withId(R.id.html_text_view))
+     * - Verify hasContentDescription() for links
+     * - Verify ATF checks pass (touch target size, contrast, labels)
+     * - Verify click() performs link navigation
+     *
+     * Example implementation:
      * ```kotlin
+     * @get:Rule
+     * val activityRule = ActivityScenarioRule(TestActivity::class.java)
+     *
      * @Test
      * fun testLinkAccessibility() {
      *     onView(withId(R.id.html_text_view))

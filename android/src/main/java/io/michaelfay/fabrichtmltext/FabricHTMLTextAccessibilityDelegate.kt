@@ -46,7 +46,7 @@ class FabricHTMLTextAccessibilityDelegate(
 
     companion object {
         private const val TAG = "A11Y_FHTML_Delegate"
-        private const val DEBUG = true
+        private val DEBUG = BuildConfig.DEBUG
     }
 
     init {
@@ -170,26 +170,29 @@ class FabricHTMLTextAccessibilityDelegate(
     }
 
     /**
+     * Safely retrieves a string resource with fallback.
+     * Catches only NotFoundException to avoid masking other errors.
+     */
+    private fun safeGetString(resId: Int, vararg formatArgs: Any, fallback: String): String {
+        return try {
+            hostView.context.resources.getString(resId, *formatArgs)
+        } catch (e: android.content.res.Resources.NotFoundException) {
+            // Log missing resource for observability
+            Log.w(TAG, "Resource not found: $resId, using fallback: $fallback")
+            fallback
+        }
+    }
+
+    /**
      * Gets the localized role description string for the given link type.
      * Falls back to English defaults if resources are not available (e.g., in tests).
      */
     private fun getRoleDescription(linkType: LinkType): String {
-        return try {
-            val resources = hostView.context.resources
-            when (linkType) {
-                LinkType.WEB -> resources.getString(R.string.a11y_link_web)
-                LinkType.PHONE -> resources.getString(R.string.a11y_link_phone)
-                LinkType.EMAIL -> resources.getString(R.string.a11y_link_email)
-                LinkType.GENERIC -> resources.getString(R.string.a11y_link)
-            }
-        } catch (e: Exception) {
-            // Fallback for test environments where resources may not be available
-            when (linkType) {
-                LinkType.WEB -> "web link"
-                LinkType.PHONE -> "phone number"
-                LinkType.EMAIL -> "email address"
-                LinkType.GENERIC -> "link"
-            }
+        return when (linkType) {
+            LinkType.WEB -> safeGetString(R.string.a11y_link_web, fallback = "web link")
+            LinkType.PHONE -> safeGetString(R.string.a11y_link_phone, fallback = "phone number")
+            LinkType.EMAIL -> safeGetString(R.string.a11y_link_email, fallback = "email address")
+            LinkType.GENERIC -> safeGetString(R.string.a11y_link, fallback = "link")
         }
     }
 
@@ -198,12 +201,7 @@ class FabricHTMLTextAccessibilityDelegate(
      * Falls back to English format if resources are not available (e.g., in tests).
      */
     private fun getPositionDescription(position: Int, total: Int): String {
-        return try {
-            hostView.context.resources.getString(R.string.a11y_link_position, position, total)
-        } catch (e: Exception) {
-            // Fallback for test environments
-            "$position of $total"
-        }
+        return safeGetString(R.string.a11y_link_position, position, total, fallback = "$position of $total")
     }
 
     /**

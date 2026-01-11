@@ -5,7 +5,9 @@ Automated translation system using Google Cloud Translation API v3.
 ## How It Works
 
 ### Source of Truth
+
 All strings are defined in `src/strings.json`:
+
 ```json
 {
   "version": 1,  // Increment when strings change
@@ -15,12 +17,15 @@ All strings are defined in `src/strings.json`:
 ```
 
 ### Version Tracking
+
 `scripts/translations.json` tracks which languages are up-to-date:
+
 - Each language has a `version` number
 - Script only translates languages where `version < source version`
 - Efficient: Only re-translates when strings change
 
 ### Workflow
+
 1. **Add/modify strings**: Edit `src/strings.json`
 2. **Increment version**: Bump the `version` number
 3. **Run script**: `node scripts/translate.js`
@@ -32,11 +37,13 @@ All strings are defined in `src/strings.json`:
 ## Setup
 
 1. **Install dependencies:**
+
    ```bash
    npm install @google-cloud/translate
    ```
 
 2. **Set up Google Cloud authentication:**
+
    ```bash
    # Login with your Google Cloud user account
    gcloud auth application-default login
@@ -59,6 +66,7 @@ node scripts/translate.js
 ```
 
 The script will:
+
 1. Generate English files from `src/strings.json`
 2. Check each language's version in `translations.json`
 3. Skip languages already at current version
@@ -67,6 +75,7 @@ The script will:
 ## Adding New Strings
 
 1. Edit `src/strings.json`:
+
    ```json
    {
      "version": 2,  // Increment!

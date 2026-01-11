@@ -52,13 +52,21 @@ export function HTMLTextNative(props: HTMLTextNativeProps): ReactElement {
     (event: LinkFocusChangeNativeEvent): void => {
       if (onLinkFocusChange) {
         const { focusedLinkIndex, url, type, totalLinks } = event.nativeEvent;
+
+        // Validate type against allowed values before casting
+        const validTypes = new Set(['link', 'email', 'phone', 'detected']);
+        const safeType =
+          type && validTypes.has(type)
+            ? (type as 'link' | 'email' | 'phone' | 'detected')
+            : null;
+
         // Convert native event format to TypeScript LinkFocusEvent
         // Native uses -1 for container focus; we preserve that
         // Native uses empty string for null values; we convert to null
         onLinkFocusChange({
           focusedLinkIndex: focusedLinkIndex,
           url: url || null,
-          type: type ? (type as 'link' | 'email' | 'phone' | 'detected') : null,
+          type: safeType,
           totalLinks,
         });
       }

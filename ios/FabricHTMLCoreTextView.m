@@ -31,8 +31,12 @@ static NSString *const HTMLDetectedContentTypeKey = @"HTMLDetectedContentType";
 
 @end
 
-/// Accessibility debug logging - set to 0 for production
+/// Accessibility debug logging - disabled in production
+#ifdef DEBUG
 #define A11Y_DEBUG 1
+#else
+#define A11Y_DEBUG 0
+#endif
 
 #if A11Y_DEBUG
 #define A11Y_LOG(fmt, ...) NSLog(@"[A11Y_FHTMLCTV] " fmt, ##__VA_ARGS__)
@@ -1292,11 +1296,13 @@ static BOOL kDebugDrawLineBounds = NO;
     // The element will dynamically convert to screen coordinates when VoiceOver requests
     // the accessibilityFrame. This ensures the frame stays accurate even when the view
     // moves (scrolling, layout changes, keyboard appearing, etc.)
+    // Use about:blank as fallback URL (empty string creates nil URL which can cause issues)
+    NSURL *safeUrl = url ?: [NSURL URLWithString:@"about:blank"];
     FabricHTMLLinkAccessibilityElement *element = [[FabricHTMLLinkAccessibilityElement alloc]
       initWithAccessibilityContainer:self
                            linkIndex:i
                       totalLinkCount:(NSUInteger)linkCount
-                                 url:url ?: [NSURL URLWithString:@""]
+                                 url:safeUrl
                          contentType:contentType
                             linkText:linkText
                         boundingRect:linkBounds

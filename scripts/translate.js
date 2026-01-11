@@ -3,7 +3,16 @@ const fs = require('fs');
 const path = require('path');
 
 // Configuration
-const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID || process.env.GCLOUD_PROJECT || '971094294542';
+const projectId =
+  process.env.GOOGLE_CLOUD_PROJECT_ID || process.env.GCLOUD_PROJECT;
+if (!projectId) {
+  console.error(
+    'ERROR: Google Cloud Project ID is required.\n' +
+      'Please set GOOGLE_CLOUD_PROJECT_ID or GCLOUD_PROJECT environment variable.\n' +
+      'Example: export GOOGLE_CLOUD_PROJECT_ID=your-project-id'
+  );
+  process.exit(1);
+}
 const location = 'global';
 const translationClient = new TranslationServiceClient();
 
@@ -12,9 +21,52 @@ const rootDir = path.join(__dirname, '..');
 const stringsJsonPath = path.join(rootDir, 'src/strings.json');
 const translationsJsonPath = path.join(__dirname, 'translations.json');
 
-// Load source strings and translation tracking
-const sourceData = JSON.parse(fs.readFileSync(stringsJsonPath, 'utf8'));
-const translationsData = JSON.parse(fs.readFileSync(translationsJsonPath, 'utf8'));
+// Security: Escape special characters for iOS .strings files
+function escapeIosString(str) {
+  return str.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+// Security: Escape special characters for Android XML files
+function escapeXml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+// Load source strings and translation tracking with error handling
+let sourceData;
+let translationsData;
+
+try {
+  if (!fs.existsSync(stringsJsonPath)) {
+    throw new Error(`Source strings file not found: ${stringsJsonPath}`);
+  }
+  const sourceContent = fs.readFileSync(stringsJsonPath, 'utf8');
+  sourceData = JSON.parse(sourceContent);
+} catch (error) {
+  console.error(`ERROR: Failed to load source strings from ${stringsJsonPath}`);
+  console.error(error.message);
+  process.exit(1);
+}
+
+try {
+  if (!fs.existsSync(translationsJsonPath)) {
+    throw new Error(
+      `Translation tracking file not found: ${translationsJsonPath}`
+    );
+  }
+  const translationsContent = fs.readFileSync(translationsJsonPath, 'utf8');
+  translationsData = JSON.parse(translationsContent);
+} catch (error) {
+  console.error(
+    `ERROR: Failed to load translation tracking from ${translationsJsonPath}`
+  );
+  console.error(error.message);
+  process.exit(1);
+}
 
 const sourceVersion = sourceData.version;
 const sourceStrings = sourceData.strings;
@@ -25,7 +77,10 @@ async function translateText(text, targetLanguage) {
   const placeholderRegex = /(%\d+\$[ds@]|%[ds@])/g;
 
   // Wrap placeholders in notranslate tags
-  const protectedText = text.replace(placeholderRegex, '<span class="notranslate">$1</span>');
+  const protectedText = text.replace(
+    placeholderRegex,
+    '<span class="notranslate">$1</span>'
+  );
 
   const request = {
     parent: `projects/${projectId}/locations/${location}`,
@@ -41,7 +96,10 @@ async function translateText(text, targetLanguage) {
     // Strip the protective tags
     return translatedText.replace(/<\/?span[^>]*>/g, '');
   } catch (error) {
-    console.error(`Translation error for "${text}" to ${targetLanguage}:`, error.message);
+    console.error(
+      `Translation error for "${text}" to ${targetLanguage}:`,
+      error.message
+    );
     throw error;
   }
 }
@@ -53,14 +111,17 @@ async function translateStrings(targetLanguage) {
     console.log(`  Translating "${key}": "${value}"`);
     translated[key] = await translateText(value, targetLanguage);
     // Small delay to avoid rate limiting
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 50));
   }
 
   return translated;
 }
 
 function writeAndroidStrings(androidLocale, strings) {
-  const dirPath = path.join(rootDir, `android/src/main/res/values-${androidLocale}`);
+  const dirPath = path.join(
+    rootDir,
+    `android/src/main/res/values-${androidLocale}`
+  );
   const filePath = path.join(dirPath, 'strings.xml');
 
   fs.mkdirSync(dirPath, { recursive: true });
@@ -78,9 +139,11 @@ function writeAndroidStrings(androidLocale, strings) {
   let first = true;
   for (const [comment, items] of Object.entries(grouped)) {
     if (!first) content += '\n';
-    content += `    <!-- ${comment} -->\n`;
+    content += `    <!-- ${escapeXml(comment)} -->\n`;
     for (const { key, value } of items) {
-      content += `    <string name="${key}">${value}</string>\n`;
+      content += `    <string name="${escapeXml(key)}">${escapeXml(
+        value
+      )}</string>\n`;
     }
     first = false;
   }
@@ -109,7 +172,7 @@ function writeIOSStrings(iosLocale, strings) {
     if (!first) content += '\n';
     content += `/* ${comment} */\n`;
     for (const { key, value } of items) {
-      content += `"${key}" = "${value}";\n`;
+      content += `"${escapeIosString(key)}" = "${escapeIosString(value)}";\n`;
     }
     first = false;
   }
@@ -128,17 +191,25 @@ async function generateAllTranslations() {
   console.log('✓ English files generated\n');
 
   // Translate other languages
-  for (const [iosLocale, localeInfo] of Object.entries(translationsData.localeMapping)) {
+  for (const [iosLocale, localeInfo] of Object.entries(
+    translationsData.localeMapping
+  )) {
     const currentVersion = translationsData.languages[iosLocale]?.version || 0;
 
     if (currentVersion >= sourceVersion) {
-      console.log(`Skipping ${iosLocale} (already at version ${currentVersion})\n`);
+      console.log(
+        `Skipping ${iosLocale} (already at version ${currentVersion})\n`
+      );
       continue;
     }
 
     console.log('='.repeat(60));
-    console.log(`Translating to ${iosLocale} (Google: ${localeInfo.google}, Android: ${localeInfo.android})`);
-    console.log(`Current version: ${currentVersion} -> Target version: ${sourceVersion}`);
+    console.log(
+      `Translating to ${iosLocale} (Google: ${localeInfo.google}, Android: ${localeInfo.android})`
+    );
+    console.log(
+      `Current version: ${currentVersion} -> Target version: ${sourceVersion}`
+    );
     console.log('='.repeat(60));
 
     try {
@@ -151,7 +222,10 @@ async function generateAllTranslations() {
 
       // Update version
       translationsData.languages[iosLocale].version = sourceVersion;
-      fs.writeFileSync(translationsJsonPath, JSON.stringify(translationsData, null, 2));
+      fs.writeFileSync(
+        translationsJsonPath,
+        JSON.stringify(translationsData, null, 2)
+      );
 
       console.log(`✓ Completed ${iosLocale}\n`);
     } catch (error) {

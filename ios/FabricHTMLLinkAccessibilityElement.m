@@ -1,7 +1,11 @@
 #import "FabricHTMLLinkAccessibilityElement.h"
 
-/// Accessibility debug logging - set to 0 for production
+/// Accessibility debug logging - disabled in production
+#ifdef DEBUG
 #define A11Y_DEBUG 1
+#else
+#define A11Y_DEBUG 0
+#endif
 
 #if A11Y_DEBUG
 #define A11Y_LOG(fmt, ...) NSLog(@"[A11Y_FHLinkElem] " fmt, ##__VA_ARGS__)
@@ -169,23 +173,29 @@
 {
     A11Y_LOG(@">>> accessibilityActivate: link[%lu] '%@' url='%@'",
              (unsigned long)self.linkIndex, self.linkText, self.url.absoluteString);
+
+    // Don't activate placeholder URLs
+    if (!self.url || [self.url.absoluteString isEqualToString:@"about:blank"]) {
+        A11Y_LOG(@">>> accessibilityActivate: invalid or placeholder URL, returning NO");
+        return NO;
+    }
+
     // Get the parent view to trigger the link activation
     id container = self.accessibilityContainer;
     if ([container isKindOfClass:[FabricHTMLCoreTextView class]]) {
         FabricHTMLCoreTextView *coreTextView = (FabricHTMLCoreTextView *)container;
 
-        // Check if delegate responds to link tap
+        // Only return YES if delegate is set and responds to selector
         if ([coreTextView.delegate respondsToSelector:@selector(coreTextView:didTapLinkWithURL:type:)]) {
             A11Y_LOG(@">>> accessibilityActivate: calling delegate");
             [coreTextView.delegate coreTextView:coreTextView
                               didTapLinkWithURL:self.url
                                            type:self.contentType];
+            return YES;
         } else {
             A11Y_LOG(@">>> accessibilityActivate: no delegate or delegate doesn't respond");
+            return NO;
         }
-        // Return YES to indicate this element is activatable, even if no delegate is set
-        // This tells VoiceOver that the element can be activated
-        return YES;
     }
     A11Y_LOG(@">>> accessibilityActivate: container is not FabricHTMLCoreTextView");
     return NO;

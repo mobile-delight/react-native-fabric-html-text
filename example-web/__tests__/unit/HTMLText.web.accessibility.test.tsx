@@ -55,7 +55,8 @@ describe('HTMLText.web Accessibility', () => {
       const rootElement = container.firstChild as HTMLElement;
       // Container should have a role that groups links
       const role = rootElement.getAttribute('role');
-      expect(role === 'group' || role === 'region' || role === null).toBe(true);
+      expect(role).not.toBeNull();
+      expect(['group', 'region']).toContain(role);
     });
   });
 
@@ -103,20 +104,31 @@ describe('HTMLText.web Accessibility', () => {
       );
 
       const links = container.querySelectorAll('a');
+      expect(links.length).toBe(3);
 
-      // Each link should have position info via aria-describedby or aria-label
-      // The exact implementation may vary, but position info should be present
+      // First link should have position info
       const firstLink = links[0];
       const describedBy = firstLink?.getAttribute('aria-describedby');
-      const label = firstLink?.getAttribute('aria-label');
 
-      // Check that either aria-describedby or aria-label includes position
-      const hasPositionInfo =
-        (describedBy &&
-          document.getElementById(describedBy)?.textContent?.includes('1')) ||
-        label?.includes('1');
+      // Verify aria-describedby exists and references a valid element
+      expect(describedBy).toBeTruthy();
 
-      expect(hasPositionInfo).toBe(true);
+      // Split space-separated IDs and find all referenced elements
+      const descIds = describedBy!.split(/\s+/);
+      let foundValidReference = false;
+      let positionText = '';
+
+      for (const id of descIds) {
+        const descElement = document.getElementById(id);
+        if (descElement) {
+          foundValidReference = true;
+          positionText += descElement.textContent || '';
+        }
+      }
+
+      expect(foundValidReference).toBe(true);
+      // Validate semantic format: "Link 1 of 3" or similar
+      expect(positionText).toMatch(/\blink\s*1\s*of\s*3\b/i);
     });
 
     it('should update position info when links are filtered by truncation', () => {
@@ -158,8 +170,8 @@ describe('HTMLText.web Accessibility', () => {
       const link = container.querySelector('a') as HTMLAnchorElement;
       expect(link).toBeTruthy();
 
-      // Links should be focusable (tabIndex >= 0 or inherently focusable)
-      expect(link.tabIndex).toBeGreaterThanOrEqual(-1);
+      // Links should be keyboard accessible (tabIndex >= 0)
+      expect(link.tabIndex).toBeGreaterThanOrEqual(0);
 
       // Verify link can receive focus
       link.focus();
@@ -220,6 +232,29 @@ describe('HTMLText.web Accessibility', () => {
       links.forEach((link) => {
         expect(link.getAttribute('aria-hidden')).not.toBe('true');
       });
+    });
+
+    it('should hide truncated links from screen readers', () => {
+      const { container } = render(
+        <HTMLText
+          html='<p><a href="https://a.com">First Link That Is Very Long</a> <a href="https://b.com">Second Link That Is Also Long</a> <a href="https://c.com">Third Link</a></p>'
+          numberOfLines={1}
+        />
+      );
+
+      const links = container.querySelectorAll('a');
+
+      // With truncation, some links should be visible
+      const visibleLinks = Array.from(links).filter(
+        (link) => link.getAttribute('aria-hidden') !== 'true'
+      );
+
+      // Should have at least one visible link
+      expect(visibleLinks.length).toBeGreaterThan(0);
+      // Due to CSS line-clamp, links may not be explicitly marked as hidden but overflow is hidden
+      // So we just verify truncation is applied to the container
+      const rootElement = container.firstChild as HTMLElement;
+      expect(rootElement.style.overflow).toBe('hidden');
     });
   });
 

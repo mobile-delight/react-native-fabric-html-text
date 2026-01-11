@@ -33,7 +33,7 @@ Pod::Spec.new do |s|
 
   s.frameworks = "CoreText", "CoreFoundation"
 
-  s.dependency "SwiftSoup", "~> 2.6"
+  s.dependency "SwiftSoup", "~> 2.11"
 
   install_modules_dependencies(s)
 end

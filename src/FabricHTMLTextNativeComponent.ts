@@ -28,7 +28,9 @@ type LinkFocusChangeEvent = Readonly<{
   focusedLinkIndex: Int32;
   // Empty string if no URL (codegen requires non-null for primitives)
   url: string;
-  // 'link' | 'email' | 'phone' | 'detected' | '' (empty = no focus)
+  // Type of link focused
+  // Note: Use string instead of union because codegen can't handle empty string in enum
+  // Validation happens at TypeScript layer in native.tsx
   type: string;
   // Total number of visible links
   totalLinks: Int32;

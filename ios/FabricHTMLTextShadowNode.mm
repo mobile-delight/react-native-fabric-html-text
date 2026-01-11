@@ -37,6 +37,8 @@ AttributedString FabricHTMLTextShadowNode::parseHtmlToAttributedString(
     const std::string& html,
     Float fontSizeMultiplier) const {
 
+    std::lock_guard<std::mutex> lock(_mutex);
+
     if (html.empty()) {
         _linkUrls.clear();
         _accessibilityLabel.clear();
@@ -99,8 +101,11 @@ Size FabricHTMLTextShadowNode::measureContent(
     }
 
     // Parse HTML to AttributedString using shared parser
+    // Note: parseHtmlToAttributedString acquires _mutex internally
     _attributedString = parseHtmlToAttributedString(props.html, fontSizeMultiplier);
 
+    // Lock for reading _attributedString
+    std::lock_guard<std::mutex> lock(_mutex);
     if (_attributedString.isEmpty()) {
         return Size{0, 0};
     }
