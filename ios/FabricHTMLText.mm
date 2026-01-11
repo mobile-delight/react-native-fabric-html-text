@@ -126,6 +126,9 @@ using namespace facebook::react;
     NSString *a11yLabel = nil;
     if (!stateData.accessibilityLabel.empty()) {
         a11yLabel = [[NSString alloc] initWithUTF8String:stateData.accessibilityLabel.c_str()];
+        if (!a11yLabel) {
+            NSLog(@"[FabricHTMLText] Failed to decode accessibility label from UTF-8");
+        }
     }
 
     // Update CoreText view properties
@@ -163,7 +166,11 @@ using namespace facebook::react;
     if (!oldProps || newProps.accessibilityLabel != oldPropsTyped.accessibilityLabel) {
         if (!newProps.accessibilityLabel.empty()) {
             NSString *reactA11yLabel = [NSString stringWithUTF8String:newProps.accessibilityLabel.c_str()];
-            _coreTextView.resolvedAccessibilityLabel = reactA11yLabel;
+            if (reactA11yLabel) {
+                _coreTextView.resolvedAccessibilityLabel = reactA11yLabel;
+            } else {
+                NSLog(@"[FabricHTMLText] Failed to decode React accessibilityLabel from UTF-8");
+            }
         }
         // If React prop is empty/not set, keep the C++ parsed one (set in updateState)
     }

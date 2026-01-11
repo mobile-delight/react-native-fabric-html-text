@@ -180,7 +180,12 @@ export default function HTMLText({
   }
 
   // Combine content with hidden description elements
-  const finalHtml = processedHtml + descriptionElements;
+  const combinedHtml = processedHtml + descriptionElements;
+
+  // Re-sanitize after modifications (defense-in-depth)
+  // This ensures any injected content from descriptionElements or
+  // style modifications is properly sanitized before rendering
+  const finalHtml = sanitize(combinedHtml);
 
   // Build ARIA attributes for screen reader navigation
   const ariaLabel =
@@ -202,7 +207,7 @@ export default function HTMLText({
       tabIndex={0}
       aria-label={ariaLabel}
       role={role}
-      // nosemgrep: no-dangerous-innerhtml-without-sanitization - finalHtml is sanitized via DOMPurify (sanitizedHtml on line 125) with only safe accessibility attributes added
+      // nosemgrep: no-dangerous-innerhtml-without-sanitization - finalHtml is re-sanitized via sanitize() after accessibility attribute injection
       dangerouslySetInnerHTML={{ __html: finalHtml }}
     />
   );
