@@ -26,6 +26,11 @@ Pod::Spec.new do |s|
   ]
   s.public_header_files = "ios/FabricHTMLCoreTextView.h"
 
+  # Localized accessibility strings
+  s.resource_bundles = {
+    'FabricHtmlTextResources' => ['ios/Resources/**/*.lproj']
+  }
+
   s.frameworks = "CoreText", "CoreFoundation"
 
   s.dependency "SwiftSoup", "~> 2.6"
