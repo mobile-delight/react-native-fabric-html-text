@@ -60,7 +60,6 @@ export const ALLOWED_ATTRIBUTES = [
   'class',
   'dir',
   'aria-describedby',
-  'style',
 ] as const;
 
 /**

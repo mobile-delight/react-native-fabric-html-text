@@ -80,10 +80,12 @@ describe('allowedHtml', () => {
     it('contains exactly the expected attributes', () => {
       // 'id' removed per YAGNI - not used in rendering (matches native sanitizers)
       // 'dir' added for RTL support (direction attribute on elements)
-      expect(ALLOWED_ATTR).toHaveLength(3);
+      // 'aria-describedby' added for accessibility link position info (WCAG 2.4.4)
+      expect(ALLOWED_ATTR).toHaveLength(4);
       expect(ALLOWED_ATTR).toContain('href');
       expect(ALLOWED_ATTR).toContain('class');
       expect(ALLOWED_ATTR).toContain('dir');
+      expect(ALLOWED_ATTR).toContain('aria-describedby');
     });
 
     it('does not contain dangerous attributes', () => {
