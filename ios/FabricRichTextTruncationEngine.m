@@ -301,6 +301,11 @@
 
     // Get line origins for all lines
     CGPoint *lineOrigins = malloc(sizeof(CGPoint) * lineCount);
+    if (!lineOrigins) {
+        TRUNCATION_LOG(@"drawTruncatedFrame: malloc failed for lineOrigins, falling back to CTFrameDraw");
+        CTFrameDraw(frame, context);
+        return;
+    }
     CTFrameGetLineOrigins(frame, CFRangeMake(0, 0), lineOrigins);
 
     // Draw all lines except the last one normally

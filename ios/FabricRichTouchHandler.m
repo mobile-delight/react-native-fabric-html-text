@@ -33,6 +33,9 @@
     }
 
     CGPoint *lineOrigins = malloc(sizeof(CGPoint) * lineCount);
+    if (!lineOrigins) {
+        return nil;
+    }
     CTFrameGetLineOrigins(frame, CFRangeMake(0, 0), lineOrigins);
 
     NSURL *foundURL = nil;

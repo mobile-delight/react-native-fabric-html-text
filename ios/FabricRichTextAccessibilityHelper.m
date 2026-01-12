@@ -152,6 +152,10 @@
 
     // Get line origins - these are in CoreText coordinates (origin at bottom-left of frame)
     CGPoint *lineOrigins = malloc(sizeof(CGPoint) * lineCount);
+    if (!lineOrigins) {
+        A11Y_HELPER_LOG(@"boundsForLinkAtIndex: malloc failed for lineOrigins");
+        return CGRectZero;
+    }
     CTFrameGetLineOrigins(frame, CFRangeMake(0, 0), lineOrigins);
 
     CGRect bounds = CGRectNull;
