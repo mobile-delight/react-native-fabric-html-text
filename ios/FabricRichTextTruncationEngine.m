@@ -351,6 +351,13 @@
 
             // Create a line from the continuous text
             CTLineRef continuousLine = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)continuousText);
+            if (!continuousLine) {
+                // Fall back to drawing the original line if line creation fails
+                CGContextSetTextPosition(context, lastOrigin.x, lastOrigin.y);
+                CTLineDraw(lastVisibleLine, context);
+                free(lineOrigins);
+                return;
+            }
 
             // Get the width of the continuous line (used for debug logging)
             CGFloat continuousLineWidth __unused = CTLineGetTypographicBounds(continuousLine, NULL, NULL, NULL);
@@ -362,6 +369,14 @@
             TRUNCATION_LOG(@"Ellipsis attributes: %@", attributes);
             NSAttributedString *ellipsisString = [[NSAttributedString alloc] initWithString:@"\u2026" attributes:attributes];
             CTLineRef ellipsisLine = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)ellipsisString);
+            if (!ellipsisLine) {
+                // Fall back to drawing the continuous line without truncation
+                CGContextSetTextPosition(context, lastOrigin.x, lastOrigin.y);
+                CTLineDraw(continuousLine, context);
+                CFRelease(continuousLine);
+                free(lineOrigins);
+                return;
+            }
 
             // Create a truncated line with word-boundary awareness
             // First, we use CTLineCreateTruncatedLine to find the truncation point,

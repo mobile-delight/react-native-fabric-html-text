@@ -39,12 +39,16 @@ static BOOL kDebugDrawLineBounds = NO;
     CFArrayRef lines = CTFrameGetLines(frame);
     CFIndex lineCount = CFArrayGetCount(lines);
 
-    if (lineCount == 0) {
+    if (lineCount <= 0) {
         _debugLineInfo = @[];
         return;
     }
 
-    CGPoint *lineOrigins = malloc(sizeof(CGPoint) * lineCount);
+    CGPoint *lineOrigins = malloc(sizeof(CGPoint) * (size_t)lineCount);
+    if (!lineOrigins) {
+        _debugLineInfo = @[];
+        return;
+    }
     CTFrameGetLineOrigins(frame, CFRangeMake(0, 0), lineOrigins);
 
     // Colors for alternating lines

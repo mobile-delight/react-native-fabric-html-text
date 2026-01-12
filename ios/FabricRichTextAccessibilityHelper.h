@@ -84,11 +84,11 @@ NS_ASSUME_NONNULL_BEGIN
  * @param visibleText The visible text for the text element's accessibility label.
  * @return Array of UIAccessibilityElement objects (text content + links).
  */
-- (NSArray *)buildAccessibilityElementsWithFrame:(CTFrameRef)frame
-                                   numberOfLines:(NSInteger)numberOfLines
-                                  attributedText:(NSAttributedString *)attributedText
-                                   containerView:(UIView *)containerView
-                                     visibleText:(NSString *)visibleText;
+- (NSArray<UIAccessibilityElement *> *)buildAccessibilityElementsWithFrame:(CTFrameRef)frame
+                                                             numberOfLines:(NSInteger)numberOfLines
+                                                            attributedText:(NSAttributedString *)attributedText
+                                                             containerView:(UIView *)containerView
+                                                               visibleText:(NSString *)visibleText;
 
 @end
 

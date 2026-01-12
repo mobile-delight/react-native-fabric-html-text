@@ -128,7 +128,9 @@
 }
 
 - (void)setNumberOfLines:(NSInteger)numberOfLines {
+#if DEBUG
     NSLog(@"[FabricRichText] setNumberOfLines: %ld -> %ld", (long)_numberOfLines, (long)numberOfLines);
+#endif
     if (_numberOfLines == numberOfLines) {
         return;
     }
@@ -318,17 +320,23 @@
 #pragma mark - Drawing
 
 - (void)drawRect:(CGRect)rect {
+#if DEBUG
     NSLog(@"[FabricRichText] drawRect called, numberOfLines=%ld, textLength=%lu",
           (long)_numberOfLines, (unsigned long)_attributedText.length);
+#endif
 
     if (_attributedText.length == 0) {
+#if DEBUG
         NSLog(@"[FabricRichText] drawRect: empty text, returning");
+#endif
         return;
     }
 
     CGContextRef context = UIGraphicsGetCurrentContext();
     if (!context) {
+#if DEBUG
         NSLog(@"[FabricRichText] drawRect: no context, returning");
+#endif
         return;
     }
 
@@ -342,13 +350,17 @@
         NSAttributedString *textToRender = _processedAttributedText ?: _attributedText;
 
         if (_numberOfLines > 0) {
+#if DEBUG
             NSLog(@"[FabricRichText] drawRect: calling drawTruncatedFrame with maxLines=%ld", (long)_numberOfLines);
+#endif
             [_truncationEngine drawTruncatedFrame:frame
                                         inContext:context
                                          maxLines:_numberOfLines
                                    attributedText:textToRender];
         } else {
+#if DEBUG
             NSLog(@"[FabricRichText] drawRect: no truncation, calling CTFrameDraw");
+#endif
             CTFrameDraw(frame, context);
         }
 

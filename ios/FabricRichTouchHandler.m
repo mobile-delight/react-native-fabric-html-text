@@ -66,6 +66,12 @@
                             foundURL = linkValue;
                         } else if ([linkValue isKindOfClass:[NSString class]]) {
                             foundURL = [NSURL URLWithString:linkValue];
+#if DEBUG
+                            if (!foundURL) {
+                                NSLog(@"[FabricRichTouchHandler] Failed to convert string to NSURL at charIndex=%ld, linkValue='%@'",
+                                      (long)charIndex, linkValue);
+                            }
+#endif
                         }
 
                         // Get the detected content type if available

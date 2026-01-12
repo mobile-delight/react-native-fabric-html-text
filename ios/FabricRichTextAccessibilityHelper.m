@@ -10,7 +10,7 @@
 /// Debug logging for accessibility - set to 0 for production
 #define A11Y_HELPER_DEBUG 0
 
-#if A11Y_HELPER_DEBUG
+#if A11Y_HELPER_DEBUG && defined(DEBUG)
 #define A11Y_HELPER_LOG(fmt, ...) NSLog(@"[A11Y_Helper] " fmt, ##__VA_ARGS__)
 #else
 #define A11Y_HELPER_LOG(fmt, ...) do { } while(0)
@@ -211,11 +211,11 @@
 
 #pragma mark - Accessibility Element Building
 
-- (NSArray *)buildAccessibilityElementsWithFrame:(CTFrameRef)frame
-                                   numberOfLines:(NSInteger)numberOfLines
-                                  attributedText:(NSAttributedString *)attributedText
-                                   containerView:(UIView *)containerView
-                                     visibleText:(NSString *)visibleText {
+- (NSArray<UIAccessibilityElement *> *)buildAccessibilityElementsWithFrame:(CTFrameRef)frame
+                                                             numberOfLines:(NSInteger)numberOfLines
+                                                            attributedText:(NSAttributedString *)attributedText
+                                                             containerView:(UIView *)containerView
+                                                               visibleText:(NSString *)visibleText {
     NSInteger linkCount = [self visibleLinkCountWithFrame:frame
                                             numberOfLines:numberOfLines
                                            attributedText:attributedText];
@@ -292,6 +292,12 @@
         NSString *linkText = [attributedText.string substringWithRange:linkRange];
         A11Y_HELPER_LOG(@"LINK[%lu] text='%@', url='%@', type=%ld", (unsigned long)i, linkText, url.absoluteString, (long)contentType);
 
+        // Skip links without a valid URL
+        if (!url) {
+            A11Y_HELPER_LOG(@"LINK[%lu] Skipping - no valid URL", (unsigned long)i);
+            continue;
+        }
+
         // Get the bounds for this link in view coordinates
         CGRect linkBounds = [self boundsForLinkAtIndex:i
                                                inFrame:frame
@@ -304,7 +310,7 @@
             initWithAccessibilityContainer:containerView
                                  linkIndex:i
                             totalLinkCount:(NSUInteger)linkCount
-                                       url:url ?: [NSURL URLWithString:@""]
+                                       url:url
                                contentType:contentType
                                   linkText:linkText
                                boundingRect:linkBounds
