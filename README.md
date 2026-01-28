@@ -1,6 +1,6 @@
 # react-native-fabric-rich-text
 
-Fabric-first HTML text renderer for React Native with iOS, Android, and web support.
+Fabric-first Rich text renderer for React Native with iOS, Android, and web support.
 
 ## Table of Contents
 
@@ -21,12 +21,13 @@ Fabric-first HTML text renderer for React Native with iOS, Android, and web supp
 ## Features
 
 - Native Fabric component for optimal performance
-- HTML parsing and rendering (bold, italic, lists, links)
+- Text markup parsing and rendering (bold, italic, lists, links)
 - Link detection (URLs, emails, phone numbers)
 - Custom tag styles via `tagStyles` prop
 - XSS protection with built-in sanitization
 - NativeWind/Tailwind CSS integration via `/nativewind` export
 - RTL (Right-to-Left) text support with `bdi`, `bdo`, and `dir` attributes
+- WCAG compliance for assistive technologies
 
 ## Installation
 
